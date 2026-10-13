@@ -33,7 +33,7 @@ import kotlin.math.roundToInt
 class MainActivity : Activity() {
     private enum class Page { DASHBOARD, PROFILES, ABOUT }
 
-    private val background = Color.rgb(10, 16, 27)
+    private val backgroundColor = Color.rgb(10, 16, 27)
     private val panel = Color.rgb(23, 32, 48)
     private val accent = Color.rgb(109, 221, 192)
     private val primary = Color.rgb(239, 245, 250)
@@ -123,7 +123,7 @@ class MainActivity : Activity() {
             textSize = 14f
             gravity = Gravity.CENTER
             typeface = Typeface.create("sans-serif-medium", Typeface.BOLD)
-            setTextColor(if (filled) background else if (enabled) accent else muted)
+            setTextColor(if (filled) backgroundColor else if (enabled) accent else muted)
             background = rounded(if (filled) accent else panel, if (filled) null else outline, 12)
             setPadding(dp(15), dp(13), dp(15), dp(13))
             isClickable = enabled
@@ -139,7 +139,7 @@ class MainActivity : Activity() {
     private fun render() {
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setBackgroundColor(background)
+            setBackgroundColor(backgroundColor)
             setOnApplyWindowInsetsListener { view, insets ->
                 @Suppress("DEPRECATION")
                 view.setPadding(0, insets.systemWindowInsetTop, 0, insets.systemWindowInsetBottom)
@@ -226,7 +226,7 @@ class MainActivity : Activity() {
                 text = style.title
                 textSize = 13f
                 typeface = Typeface.create("sans-serif-medium", Typeface.BOLD)
-                setTextColor(if (active) background else primary)
+                setTextColor(if (active) backgroundColor else primary)
                 gravity = Gravity.CENTER
                 background = rounded(if (active) accent else panel, if (active) null else outline, 12)
                 isClickable = true
@@ -333,7 +333,7 @@ class MainActivity : Activity() {
                 gravity = Gravity.CENTER
                 typeface = Typeface.create("sans-serif-medium", Typeface.BOLD)
                 setTextColor(if (selected) accent else muted)
-                background = if (selected) rounded(background) else null
+                background = if (selected) rounded(backgroundColor) else null
                 isClickable = true
                 isFocusable = true
                 setOnClickListener { page = target; render() }
