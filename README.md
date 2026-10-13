@@ -8,11 +8,14 @@
 
 Existing Bedrock clients already offer HUD widgets, cosmetics and toggles. Argon's proposed differentiator is **Argon Flow**: explainable, device-aware, playstyle-specific touch layouts and performance profiles, with privacy-first offline storage. The goal is to make the Android experience comfortable on lower-end devices and large phones without overwhelming players.
 
+**Modules:** Argon lets you browse and wishlist proposed modules, but **does not activate any in-game module**. Module wishlist preferences are stored locally and are not yet included in the JSON profile export.
+
 Current foundation:
 - Native Android app with a dark, mobile-first dashboard.
 - Playstyle profiles (PvP, Building, Exploration), customizable control scale / HUD visibility / visual preference.
 - **Argon Flow** recommendations based on Android's low-RAM flag, application memory class, refresh rate and battery-saver mode, with clear explanations.
 - Offline persistence and JSON import/export through Android's Storage Access Framework.
+- Browsable module catalog (HUD, visual, controls, utility), category filters/search, and locally saved module wishlist; **none of these modules are active in Minecraft yet**.
 - Detection and launch of an already installed, legitimate Minecraft Android app.
 - Separate recommendation, storage, UI and future game-integration boundaries.
 - Unit tests and a GitHub Actions Android CI workflow.
@@ -26,6 +29,8 @@ Current foundation:
 | Device-based recommendations | Implemented in Argon |
 | JSON import and export | Implemented in Argon |
 | Launch an installed Minecraft | Implemented via Android package manager |
+| Module catalog, filtering and wishlist | Implemented inside Argon (no in-game effect) |
+| Minecraft module execution | **Not implemented** |
 | Apply HUD/control changes **inside** Minecraft | **Not implemented** |
 | FPS optimization and graphics engine mods | **Not implemented** |
 | In-game overlay or native hooks | **Not implemented** |
@@ -43,7 +48,8 @@ The GitHub Actions workflow performs the same build and JVM tests. This minimal 
 ## Architecture
 
 - `core/`: platform-independent profiles and explainable recommendations.
-- `data/`: local profiles, validation and portable JSON schema.
+- `data/`: local profiles, wishlist state, validation and portable JSON schema.
+- `core/ModuleCatalog.kt`: stable module IDs, capabilities and activation guard (no compatible game integration is available).
 - `MainActivity`: native Android UI, dashboard, profiles and import/export.
 - `MinecraftLauncher`: checks and opens the installed official app.
 - `docs/ROADMAP.md`: compatibility-aware path toward a real modded client.
