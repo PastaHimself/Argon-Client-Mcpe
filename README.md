@@ -32,21 +32,21 @@ Current foundation:
 
 ## Build
 
-Prerequisites: Android Studio with JDK 17, Android SDK Platform 35 and Gradle 8.13. Import this repository as an Android project, sync, then run the \`app\` configuration on an Android 8.0+ device. In a CLI environment with Gradle installed:
+Prerequisites: Android Studio with JDK 17, Android SDK Platform 35 and Gradle 8.13. Import this repository as an Android project, sync, then run the `app` configuration on an Android 8.0+ device. In a CLI environment with Gradle installed:
 
-\`\`\`sh
+```sh
 gradle --no-daemon :app:assembleDebug :app:testDebugUnitTest
-\`\`\`
+```
 
-The GitHub Actions workflow performs the same build and JVM tests. This minimal foundation does not bundle Gradle's wrapper JAR; use Android Studio or an installed Gradle 8.13 distribution. The produced debug APK is under \`app/build/outputs/apk/debug/\`. The Android app is **not** Minecraft itself; Minecraft must be installed independently.
+The GitHub Actions workflow performs the same build and JVM tests. This minimal foundation does not bundle Gradle's wrapper JAR; use Android Studio or an installed Gradle 8.13 distribution. The produced debug APK is under `app/build/outputs/apk/debug/`. The Android app is **not** Minecraft itself; Minecraft must be installed independently.
 
 ## Architecture
 
-- \`core/\`: platform-independent profiles and explainable recommendations.
-- \`data/\`: local profiles, validation and portable JSON schema.
-- \`MainActivity\`: native Android UI, dashboard, profiles and import/export.
-- \`MinecraftLauncher\`: checks and opens the installed official app.
-- \`docs/ROADMAP.md\`: compatibility-aware path toward a real modded client.
+- `core/`: platform-independent profiles and explainable recommendations.
+- `data/`: local profiles, validation and portable JSON schema.
+- `MainActivity`: native Android UI, dashboard, profiles and import/export.
+- `MinecraftLauncher`: checks and opens the installed official app.
+- `docs/ROADMAP.md`: compatibility-aware path toward a real modded client.
 
 The Android UI intentionally uses platform widgets and zero third-party runtime libraries to minimize overhead and simplify early testing.
 
