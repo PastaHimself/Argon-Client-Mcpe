@@ -218,7 +218,7 @@ class MainActivity : Activity() {
         card(parent) { body ->
             label(body, "MODULES / FUTURE CLIENT", 11f, accent, true, 8)
             val savedCount = ModuleCatalog.all.count { moduleStore.isDesired(it.id) }
-            label(body, "${'${ModuleCatalog.all.size}'} planned • $savedCount in wishlist", 18f, primary, true, 7)
+            label(body, ModuleCatalog.all.size.toString() + " planned • " + savedCount + " in wishlist", 18f, primary, true, 7)
             label(body, "No modules run in Minecraft yet. Build your wishlist while integration is researched.", 13f, muted)
             action(body, "Browse modules") { page = Page.MODULES; render() }
         }
