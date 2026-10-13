@@ -48,6 +48,26 @@
 - [ ] **P1:** Handle unreliable/unavailable device metrics safely.
 - [ ] **P2:** Offer optional on-device calibration; keep results offline unless the user explicitly exports them.
 
+### Modules — the planned Lunar-style customization system
+
+- [x] **P0:** Add a native module catalog, categories, search and a saved local wishlist (no in-game behavior).
+- [x] **P0:** Give modules stable IDs, capability requirements and a fail-closed availability guard.
+- [x] **P0:** Show clear `planned/unavailable` labels; never imply wishlist toggles activate modules.
+- [ ] **P0:** Define capability-based module configuration schema (positions, scale, opacity, hotkeys) with validation and migration.
+- [ ] **P0:** Add module-specific controls, presets and a layout preview **inside Argon**.
+- [ ] **P0:** Extend JSON import/export to include module preferences safely.
+- [ ] **P1:** Add search, favorites and default preset bundles aligned with PvP / Building / Exploration.
+- [ ] **P1:** Add accessible module descriptions and screenshot previews.
+- [ ] **P1:** After the integration feasibility gate, implement and individually verify these proposed modules where supported:
+  - [ ] FPS Counter and performance metrics (real measurements, not promises)
+  - [ ] CPS Counter and Keystrokes
+  - [ ] Coordinates, Armor HUD, Status Effects and Clock
+  - [ ] Ping Display (only if accurate gameplay network metrics can be read)
+  - [ ] Zoom / adjustable FOV and Minimal HUD
+  - [ ] Touch Input Visualizer and readable HUD
+- [ ] **P1:** Check each module against server rules and use compatibility flags; keep unsupported functionality disabled.
+- [ ] **P2:** Consider a sandboxed community module ecosystem only after a stable runtime, API and security model exist.
+
 **Done when:** A player can create a useful, understandable mobile control layout in Argon without Minecraft integration.
 
 ## Phase 2 — feasibility gate: becoming a real Bedrock client (P0)
@@ -70,7 +90,8 @@
 
 - [ ] **P0:** Integrate one Touch Lab layout with the game **only where technically supported**.
 - [ ] **P0:** Expose an understandable on/off and reset path for every working module.
-- [ ] **P0:** Add a simple, responsive module/settings UI with search and categories.
+- [x] **P0:** Add an **app-only** module catalog UI with search and categories (wishlist, not in-game).
+- [ ] **P0:** Add real in-game module settings and activation, only after a supported integration exists.
 - [ ] **P0:** Prevent unsupported modules from appearing as available.
 - [ ] **P0:** Make backups and recovery straightforward; never overwrite Minecraft files silently.
 - [ ] **P1:** Add user-requested HUD elements (e.g. coordinates, clock or input display) only where supported and allowed.
@@ -126,7 +147,7 @@
 ## Release gates
 
 - **v0.1.x — Companion alpha:** Android foundation tested on devices, stable local profiles, APK and documentation.
-- **v0.2 — Touch Lab beta:** Touch editor, presets and accessible mobile UI work **inside Argon**.
+- **v0.2 — Touch Lab beta:** Touch editor, module catalog/preferences, presets and accessible mobile UI work **inside Argon**.
 - **v0.3 — Integration feasibility:** One real supported integration demonstrated **or** an explicit no-go decision.
 - **v0.5 — Client alpha (conditional):** At least one verified in-game feature, safe fallback and compatibility checks.
 - **v1.0 — Public stable (conditional):** Reliable integration, honest feature claims, security/release checks, supported-version matrix and real-device QA.

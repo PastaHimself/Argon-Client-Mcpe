@@ -22,6 +22,14 @@ Argon is designed for Android touch players. Its proposed differentiator is **ex
 - [ ] Profiler for app launch time, memory and thermal state **without** promising Minecraft FPS improvements
 - [ ] User-exportable diagnostics that contain no account credentials
 
+## Stage 1B — Module foundation (companion-only)
+
+- [x] Browsable module catalog with search and category filters
+- [x] Offline wishlist of desired modules, without any in-game activation
+- [x] Stable module metadata and capability-based safety guard
+- [ ] Settings schema, layout previews, module-specific UX and export/import
+- [ ] Verify each supported module on real devices **only after** Minecraft integration succeeds
+
 ## Stage 2 — Minecraft compatibility research
 
 Before claiming a client rather than a companion, investigate a legally distributable and maintainable integration method for supported, legitimately installed Minecraft Android versions. Compare sanctioned resource packs/add-ons and supported APIs before considering invasive hooks. Never ship proprietary Minecraft binaries.

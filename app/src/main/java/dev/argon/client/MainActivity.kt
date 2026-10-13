@@ -12,6 +12,10 @@ import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
 import android.widget.LinearLayout
+import android.widget.EditText
+import android.text.Editable
+import android.text.TextWatcher
+import android.widget.HorizontalScrollView
 import android.widget.ScrollView
 import android.widget.SeekBar
 import android.widget.TextView
@@ -22,6 +26,11 @@ import dev.argon.client.core.DeviceSnapshot
 import dev.argon.client.core.PlayStyle
 import dev.argon.client.core.VisualPreference
 import dev.argon.client.data.ProfileStore
+import dev.argon.client.core.ModuleCatalog
+import dev.argon.client.core.ModuleCategory
+import dev.argon.client.core.ModuleGate
+import dev.argon.client.core.NoGameIntegration
+import dev.argon.client.data.ModuleStore
 import java.io.IOException
 import java.nio.charset.StandardCharsets
 import kotlin.math.roundToInt
@@ -31,7 +40,7 @@ import kotlin.math.roundToInt
  * "Preview" is deliberately explicit: it does not pretend to modify Minecraft.
  */
 class MainActivity : Activity() {
-    private enum class Page { DASHBOARD, PROFILES, ABOUT }
+    private enum class Page { DASHBOARD, PROFILES, MODULES, ABOUT }
 
     private val backgroundColor = Color.rgb(10, 16, 27)
     private val panel = Color.rgb(23, 32, 48)
@@ -41,6 +50,9 @@ class MainActivity : Activity() {
     private val outline = Color.rgb(47, 65, 80)
 
     private lateinit var store: ProfileStore
+    private lateinit var moduleStore: ModuleStore
+    private var moduleQuery: String = ""
+    private var moduleFilter: ModuleCategory? = null
     private lateinit var device: DeviceSnapshot
     private var page = Page.DASHBOARD
 
@@ -57,6 +69,7 @@ class MainActivity : Activity() {
             batterySaver = powerManager.isPowerSaveMode
         )
         store = ProfileStore(this, device)
+        moduleStore = ModuleStore(this)
         render()
     }
 
@@ -166,6 +179,7 @@ class MainActivity : Activity() {
         when (page) {
             Page.DASHBOARD -> dashboard(content)
             Page.PROFILES -> profiles(content)
+            Page.MODULES -> modules(content)
             Page.ABOUT -> about(content)
         }
         root.addView(navigation(), LinearLayout.LayoutParams(
@@ -200,6 +214,13 @@ class MainActivity : Activity() {
                 page = Page.PROFILES
                 render()
             }
+        }
+        card(parent) { body ->
+            label(body, "MODULES / FUTURE CLIENT", 11f, accent, true, 8)
+            val savedCount = ModuleCatalog.all.count { moduleStore.isDesired(it.id) }
+            label(body, ModuleCatalog.all.size.toString() + " planned • " + savedCount + " in wishlist", 18f, primary, true, 7)
+            label(body, "No modules run in Minecraft yet. Build your wishlist while integration is researched.", 13f, muted)
+            action(body, "Browse modules") { page = Page.MODULES; render() }
         }
         card(parent) { body ->
             label(body, "DEVICE SIGNALS", 11f, accent, true, 9)
@@ -271,6 +292,94 @@ class MainActivity : Activity() {
         }
     }
 
+
+    private fun modules(parent: LinearLayout) {
+        label(parent, "Modules", 20f, primary, true, 7)
+        label(parent, "Plan the in-game features you want. All modules are currently unavailable in Minecraft; saving a wishlist does not activate them.", 13f, muted, false, 13)
+        card(parent) { body ->
+            label(body, "MODULE INTEGRATION", 11f, accent, true, 6)
+            label(body, "0 active  •  ${ModuleCatalog.all.size} planned", 17f, primary, true, 6)
+            label(body, "Official Minecraft is launched separately. An in-game integration has not been implemented or verified.", 12f, muted)
+        }
+
+        val search = EditText(this).apply {
+            hint = "Search modules"
+            setSingleLine(true)
+            textSize = 14f
+            setTextColor(primary)
+            setHintTextColor(muted)
+            background = rounded(panel, outline, 12)
+            setPadding(dp(13), dp(10), dp(13), dp(10))
+            setText(moduleQuery)
+        }
+        parent.addView(search, LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, dp(48)
+        ))
+        space(parent, 10)
+        val categories = HorizontalScrollView(this).apply {
+            isHorizontalScrollBarEnabled = false
+        }
+        val chips = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        categories.addView(chips)
+        parent.addView(categories, LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, dp(44)
+        ))
+        val filters: List<Pair<ModuleCategory?, String>> =
+            listOf<Pair<ModuleCategory?, String>>(null to "All") +
+                ModuleCategory.entries.map { it to it.title }
+        filters.forEach { (category, name) ->
+            val active = moduleFilter == category
+            val chip = TextView(this).apply {
+                text = name
+                textSize = 13f
+                gravity = Gravity.CENTER
+                setTextColor(if (active) backgroundColor else primary)
+                background = rounded(if (active) accent else panel, if (active) null else outline, 10)
+                setPadding(dp(15), dp(6), dp(15), dp(6))
+                isClickable = true
+                isFocusable = true
+                setOnClickListener { moduleFilter = category; render() }
+            }
+            chips.addView(chip, LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, dp(39)
+            ).apply { rightMargin = dp(8) })
+        }
+        space(parent, 13)
+        val results = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        parent.addView(results)
+        renderModuleCards(results)
+        search.addTextChangedListener(object : TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
+                moduleQuery = s?.toString() ?: ""
+                renderModuleCards(results)
+            }
+            override fun afterTextChanged(s: Editable?) = Unit
+        })
+    }
+
+    private fun renderModuleCards(target: LinearLayout) {
+        target.removeAllViews()
+        val matching = ModuleCatalog.search(moduleQuery, moduleFilter)
+        if (matching.isEmpty()) {
+            label(target, "No matching modules.", 14f, muted)
+            return
+        }
+        matching.forEach { module ->
+            card(target) { body ->
+                label(body, module.category.title.uppercase() + "  /  PLANNED", 11f, accent, true, 7)
+                label(body, module.title, 18f, primary, true, 5)
+                label(body, module.description, 13f, muted, false, 8)
+                val status = ModuleGate.status(module, NoGameIntegration)
+                label(body, "In-game status: " + status.label, 12f, muted, true)
+                action(body, if (moduleStore.isDesired(module.id)) "Remove from wishlist" else "Add to wishlist") {
+                    moduleStore.setDesired(module.id, !moduleStore.isDesired(module.id))
+                    renderModuleCards(target)
+                }
+            }
+        }
+    }
+
     private fun slider(
         parent: LinearLayout,
         title: String,
@@ -323,6 +432,7 @@ class MainActivity : Activity() {
         val labels = listOf(
             Page.DASHBOARD to "Overview",
             Page.PROFILES to "Profiles",
+            Page.MODULES to "Modules",
             Page.ABOUT to "About"
         )
         labels.forEach { (target, text) ->
