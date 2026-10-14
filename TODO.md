@@ -53,7 +53,9 @@
 - [x] **P0:** Add a native module catalog, categories, search and a saved local wishlist (no in-game behavior).
 - [x] **P0:** Give modules stable IDs, capability requirements and a fail-closed availability guard.
 - [x] **P0:** Show clear `planned/unavailable` labels; never imply wishlist toggles activate modules.
-- [ ] **P0:** Smoke-test floating in-app module launcher, drag and persisted Argon FPS/Device Status toggles on a real Android device (separate from Minecraft overlay).
+- [ ] **P0:** Smoke-test optional cross-app overlay over installed Minecraft on real devices (permission grant/deny/revocation, notification Stop, service teardown, portrait/landscape, battery restrictions).
+- [ ] **P0:** Confirm overlay behavior after leaving Minecraft; user must be able to stop it promptly.
+- [ ] **P0:** Smoke-test in-app module editor on Modules page, drag and persisted Argon FPS/Device Status toggles on a real device.
 - [ ] **P0:** Define capability-based module configuration schema (positions, scale, opacity, hotkeys) with validation and migration.
 - [ ] **P0:** Add module-specific controls, presets and a layout preview **inside Argon**.
 - [ ] **P0:** Extend JSON import/export to include module preferences safely.
