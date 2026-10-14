@@ -21,3 +21,11 @@ Argon is a **native Android companion app**, not an in-game Minecraft modificati
 - Build and run Android tests; manually smoke-test on a real device before marking the UI production-ready.
 
 No new runtime dependencies, permissions, network requests or Minecraft integration are part of this UI redesign.
+
+## Floating modules (in-app only)
+
+- The mint 56dp **A** launcher can be dragged within the Activity's safe content bounds, and its fractional position survives Activity recreation.
+- Tap to open a scrollable, dim-backed module sheet, or tap outside / close to dismiss. Interactive toggles are limited to `AppModuleRegistry` allowlisted **Argon-only** capabilities and persist separately from the game wishlist.
+- **App FPS** uses real Window frame callback samples, displays no reading while idle, and stops collecting when disabled or backgrounded. **Device Status** shows app memory class and battery-saver state, not game telemetry.
+- Planned Minecraft modules are text-only disabled rows, never toggles, until the capability gate is legitimately implemented.
+- **Device checks required:** drag, rotate, scroll behind sheet, Android back navigation, TalkBack focus, toggles after process recreation, lowest supported API 26, landscape clipping, and no HUD over another app.

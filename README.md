@@ -12,7 +12,7 @@ Existing Bedrock clients already offer HUD widgets, cosmetics and toggles. Argon
 
 Current foundation:
 - Native Android app with a dark, mobile-first dashboard.
-- **Measured Argon UI FPS** from Android's real window frame timestamps; shown on the Overview screen while the app is actively redrawing. Displays a dash when idle/insufficient data. This is not Minecraft FPS.
+- **Floating in-app module launcher:** a draggable mint **A** button opens a compact panel to enable or disable real Argon-only modules. App FPS uses Android's own frame timestamps (dash when idle/insufficient data); Device Status shows Android app memory class and battery saver. No Minecraft screen overlay or game FPS reading.
 - Playstyle profiles (PvP, Building, Exploration), customizable control scale / HUD visibility / visual preference.
 - **Argon Flow** recommendations based on Android's low-RAM flag, application memory class, refresh rate and battery-saver mode, with clear explanations.
 - Offline persistence and JSON import/export through Android's Storage Access Framework.
@@ -28,7 +28,9 @@ Current foundation:
 | --- | --- |
 | Profile selection, edits and saved preferences | Implemented in Argon |
 | Device-based recommendations | Implemented in Argon |
-| Argon window render FPS | Implemented in Argon only (not Minecraft) |
+| Floating in-app module launcher and saved module toggles | Implemented inside Argon only |
+| Argon window render FPS | Optional Argon-only HUD module (not Minecraft) |
+| Device Status pill | Optional Argon-only HUD module |
 | JSON import and export | Implemented in Argon |
 | Launch an installed Minecraft | Implemented via Android package manager |
 | Module catalog, filtering and wishlist | Implemented inside Argon (no in-game effect) |
@@ -51,13 +53,22 @@ The GitHub Actions workflow performs the same build and JVM tests. This minimal 
 
 - `core/`: platform-independent profiles and explainable recommendations.
 - `data/`: local profiles, wishlist state, validation and portable JSON schema.
-- `core/ModuleCatalog.kt`: stable module IDs, capabilities and activation guard (no compatible game integration is available).
+- `core/ModuleCatalog.kt`: stable proposed *game* module IDs, capabilities and activation guard (no compatible game integration is available).
+- `core/AppModuleRegistry.kt` + `data/AppModuleStore.kt`: allowlisted app-only modules and independently persisted on/off state. No migration from the game wishlist.
 - `MainActivity`: native Android UI, dashboard, profiles and import/export.
 - `performance/UiFrameRateMonitor.kt` + `core/FrameRateSampler.kt`: observed window frames, recent-rate calculation, idle handling, and lifecycle cleanup. Android may drop frame-metric reports, so FPS is an estimate of Argon's own reported render cadence, not a device benchmark.
 - `MinecraftLauncher`: checks and opens the installed official app.
 - `docs/ROADMAP.md`: compatibility-aware path toward a real modded client.
 
 The Android UI intentionally uses platform widgets and zero third-party runtime libraries to minimize overhead and simplify early testing.
+
+### Floating module launcher
+
+1. Open Argon and tap the floating **A** at the edge of the screen (drag it to reposition).
+2. Enable **App FPS Counter** to show `APP  —` / measured Argon window FPS, or **Device Status** to show real Android device state. Both toggles persist across app relaunches and can be switched off at any time.
+3. The panel lists planned Minecraft modules as **unavailable**; `Browse planned modules` opens the existing wishlist, not a game module runtime.
+
+The floating bubble and HUD pills are **inside Argon's Activity**, not a system-wide overlay. They disappear when Minecraft or another app takes focus. This feature requests no draw-over-other-apps, accessibility or foreground-service permission. Accurate in-game FPS and overlays require a separately verified game integration and are not implemented here.
 
 ## Project boundaries
 
