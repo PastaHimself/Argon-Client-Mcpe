@@ -619,6 +619,10 @@ class MainActivity : Activity() {
                 label(body, module.description, 13f, muted, false, 8)
                 val status = ModuleGate.status(module, NoGameIntegration)
                 label(body, "In-game status: " + status.label, 12f, muted, true)
+                if (module.id == "fps_counter") {
+                    label(body, "Alternative: import a third-party FPS resource pack directly into Minecraft. Argon does not control whether that pack is active.", 12f, muted, false, 5)
+                    action(body, "Get Minecraft FPS resource pack  ↗") { openFpsPackPage() }
+                }
                 action(body, if (moduleStore.isDesired(module.id)) "Remove from wishlist" else "Add to wishlist") {
                     moduleStore.setDesired(module.id, !moduleStore.isDesired(module.id))
                     renderModuleCards(target)
