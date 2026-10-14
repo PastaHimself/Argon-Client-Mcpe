@@ -38,3 +38,7 @@ No new runtime dependencies, permissions, network requests or Minecraft integrat
 - The HUD is noninteractive, uses a restricted opacity, and displays no fabricated gameplay metrics. The overlay is a system-level window, **not** a Minecraft game modification or a version-specific integration.
 - The service does **not** track which app is in the foreground. It may remain over other applications after Minecraft closes. Inform the user; no Usage Access or Accessibility Service is requested. Validate Google Play foreground-service declarations/policy prior to public distribution.
 - Device-only test matrix: API 26, 34 and 35; Android 15+, phones/tablets, Minecraft fullscreen; permission denied/granted/revoked, notification stop, app exit/return, screen rotation, drag and touch-through, task killer, and OEM permission limitations.
+
+## Minecraft FPS resource-pack setup
+
+The Overview card and floating panel link to an independent, MIT-licensed Bedrock FPS resource pack. The user imports and enables it **inside Minecraft**; neither Argon nor the Android overlay can activate or read it. No Shizuku, diagnostic service, root or MediaProjection capture are requested. See [FPS_WITHOUT_SHIZUKU.md](FPS_WITHOUT_SHIZUKU.md).
