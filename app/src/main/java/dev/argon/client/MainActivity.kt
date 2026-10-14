@@ -11,9 +11,13 @@ import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
 import android.os.PowerManager
 import android.view.Gravity
+import android.view.MotionEvent
+import android.view.ViewConfiguration
 import android.view.View
 import android.view.ViewGroup
 import android.widget.LinearLayout
+import android.widget.FrameLayout
+import android.widget.Switch
 import android.widget.EditText
 import android.text.Editable
 import android.text.TextWatcher
@@ -28,15 +32,20 @@ import dev.argon.client.core.DeviceSnapshot
 import dev.argon.client.core.PlayStyle
 import dev.argon.client.core.VisualPreference
 import dev.argon.client.data.ProfileStore
+import dev.argon.client.core.AppModuleRegistry
 import dev.argon.client.core.ModuleCatalog
 import dev.argon.client.core.ModuleCategory
 import dev.argon.client.core.ModuleGate
 import dev.argon.client.core.NoGameIntegration
 import dev.argon.client.data.ModuleStore
+import dev.argon.client.data.AppModuleStore
 import dev.argon.client.performance.UiFrameRateMonitor
 import java.io.IOException
 import java.nio.charset.StandardCharsets
 import kotlin.math.roundToInt
+import kotlin.math.abs
+import kotlin.math.max
+import kotlin.math.min
 
 /**
  * Lightweight touch-first UI. No dependencies outside the Android framework.
@@ -56,6 +65,13 @@ class MainActivity : Activity() {
 
     private lateinit var store: ProfileStore
     private lateinit var moduleStore: ModuleStore
+    private lateinit var appModuleStore: AppModuleStore
+    private var modulePanelOpen = false
+    private var bubbleXFraction: Float? = null
+    private var bubbleYFraction: Float? = null
+    private var foreground = false
+    private var lastUiFps: Double? = null
+    private var floatingFpsReadout: TextView? = null
     private var moduleQuery: String = ""
     private var moduleFilter: ModuleCategory? = null
     private lateinit var device: DeviceSnapshot
@@ -77,31 +93,36 @@ class MainActivity : Activity() {
         )
         store = ProfileStore(this, device)
         moduleStore = ModuleStore(this)
+        appModuleStore = AppModuleStore(this)
         fpsMonitor = UiFrameRateMonitor(window) { measured ->
-            val value = if (measured == null) "—" else "${measured.roundToInt()} FPS"
-            fpsReadout?.let {
-                if (it.text.toString() != value) it.text = value
-                it.contentDescription = if (measured == null) {
-                    "Argon app frame rate unavailable while idle"
-                } else {
-                    "Argon app frame rate ${measured.roundToInt()} frames per second"
-                }
-            }
+            lastUiFps = measured
+            updateFpsLabels()
         }
         savedInstanceState?.getString("argon_page")?.let { saved ->
             page = Page.entries.firstOrNull { it.name == saved } ?: Page.DASHBOARD
+        }
+        modulePanelOpen = savedInstanceState?.getBoolean("module_panel_open") ?: false
+        if (savedInstanceState?.containsKey("bubble_x_fraction") == true) {
+            bubbleXFraction = savedInstanceState.getFloat("bubble_x_fraction")
+            bubbleYFraction = savedInstanceState.getFloat("bubble_y_fraction")
         }
         render()
     }
 
     override fun onSaveInstanceState(outState: Bundle) {
         outState.putString("argon_page", page.name)
+        outState.putBoolean("module_panel_open", modulePanelOpen)
+        bubbleXFraction?.let {
+            outState.putFloat("bubble_x_fraction", it)
+            outState.putFloat("bubble_y_fraction", bubbleYFraction ?: 0.5f)
+        }
         super.onSaveInstanceState(outState)
     }
 
     override fun onStart() {
         super.onStart()
-        fpsMonitor.start()
+        foreground = true
+        if (appModuleStore.isEnabled(AppModuleRegistry.UI_FPS)) fpsMonitor.start()
     }
 
     override fun onResume() {
@@ -110,8 +131,35 @@ class MainActivity : Activity() {
     }
 
     override fun onStop() {
+        foreground = false
         fpsMonitor.stop()
+        lastUiFps = null
+        updateFpsLabels()
         super.onStop()
+    }
+
+    private fun updateFpsLabels() {
+        val rate = lastUiFps
+        val value = if (rate == null) "—" else "${rate.roundToInt()} FPS"
+        val accessible = if (rate == null) "Argon app FPS unavailable while idle" else
+            "Argon app ${rate.roundToInt()} frames per second, not Minecraft FPS"
+        fpsReadout?.apply {
+            if (text.toString() != value) text = value
+            contentDescription = accessible
+        }
+        floatingFpsReadout?.apply {
+            if (text.toString() != "APP  $value") text = "APP  $value"
+            contentDescription = accessible
+        }
+    }
+
+    private fun setAppModuleEnabled(id: String, enabled: Boolean) {
+        appModuleStore.setEnabled(id, enabled)
+        if (id == AppModuleRegistry.UI_FPS) {
+            lastUiFps = null
+            if (enabled && foreground) fpsMonitor.start() else fpsMonitor.stop()
+        }
+        render()
     }
 
     private fun dp(value: Int): Int = (value * resources.displayMetrics.density).roundToInt()
@@ -198,14 +246,10 @@ class MainActivity : Activity() {
     private fun render() {
         // Old views must not be retained when switching pages or recreating the root.
         fpsReadout = null
+        floatingFpsReadout = null
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setBackgroundColor(backgroundColor)
-            setOnApplyWindowInsetsListener { view, insets ->
-                @Suppress("DEPRECATION")
-                view.setPadding(0, insets.systemWindowInsetTop, 0, insets.systemWindowInsetBottom)
-                insets
-            }
         }
         val scroll = ScrollView(this).apply {
             isFillViewport = true
@@ -276,7 +320,20 @@ class MainActivity : Activity() {
         root.addView(navigation(), LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT, dp(72)
         ))
-        setContentView(root)
+        val layer = FrameLayout(this).apply {
+            setBackgroundColor(backgroundColor)
+            setOnApplyWindowInsetsListener { view, insets ->
+                @Suppress("DEPRECATION")
+                view.setPadding(0, insets.systemWindowInsetTop, 0, insets.systemWindowInsetBottom)
+                insets
+            }
+        }
+        layer.addView(root, FrameLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT
+        ))
+        attachFloatingControls(layer)
+        setContentView(layer)
+        updateFpsLabels()
     }
 
     private fun dashboard(parent: LinearLayout) {
@@ -293,11 +350,14 @@ class MainActivity : Activity() {
             }
         }
         card(parent) { body ->
-            label(body, "PERFORMANCE  ·  ARGON APP ONLY", 11f, accent, true, 11)
-            fpsReadout = label(body, "—", 30f, primary, true, 7).apply {
-                contentDescription = "Argon app frame rate unavailable while idle"
+            label(body, "APP FPS  ·  OPTIONAL MODULE", 11f, accent, true, 11)
+            if (appModuleStore.isEnabled(AppModuleRegistry.UI_FPS)) {
+                fpsReadout = label(body, "—", 30f, primary, true, 7)
+                label(body, "Measured from Argon's own rendered frames. Idle windows show a dash. Not Minecraft FPS.", 12f, muted)
+            } else {
+                label(body, "Off", 22f, primary, true, 7)
+                label(body, "Open the floating A icon to enable the app FPS counter.", 12f, muted)
             }
-            label(body, "Measured from frames rendered by Argon's own window during interaction. A dash means idle or insufficient samples. This is not Minecraft FPS.", 12f, muted)
         }
         val style = store.selected()
         val advice = ArgonFlow.recommend(style, device)
@@ -547,6 +607,7 @@ class MainActivity : Activity() {
                 setOnClickListener {
                     if (page != target) {
                         page = target
+                        modulePanelOpen = false
                         render()
                     }
                 }
@@ -571,6 +632,228 @@ class MainActivity : Activity() {
             })
         }
         return nav
+    }
+
+    /** In-app floating controls only: no system overlay or Minecraft integration. */
+    private fun attachFloatingControls(layer: FrameLayout) {
+        val hudOffset = dp(94)
+        if (appModuleStore.isEnabled(AppModuleRegistry.UI_FPS)) {
+            floatingFpsReadout = floatingPill(layer, "APP  —", hudOffset).apply {
+                contentDescription = "Argon app FPS unavailable while idle"
+            }
+        }
+        if (appModuleStore.isEnabled(AppModuleRegistry.DEVICE_STATUS)) {
+            val saver = if (device.batterySaver) "Saver on" else "Saver off"
+            floatingPill(layer, "APP MEMORY  ${device.memoryClassMb} MB  ·  $saver",
+                hudOffset + dp(48)).apply {
+                contentDescription = "Android app memory class ${device.memoryClassMb} megabytes, battery saver $saver"
+            }
+        }
+
+        val bubble = TextView(this).apply {
+            text = "A"
+            textSize = 21f
+            gravity = Gravity.CENTER
+            typeface = Typeface.create("sans-serif-medium", Typeface.BOLD)
+            setTextColor(backgroundColor)
+            background = touchBackground(accent, radius = 28)
+            elevation = dp(8).toFloat()
+            isClickable = true
+            isFocusable = true
+            contentDescription = "Open Argon floating module controls"
+            setOnClickListener {
+                modulePanelOpen = !modulePanelOpen
+                render()
+            }
+        }
+        layer.addView(bubble, FrameLayout.LayoutParams(dp(56), dp(56),
+            Gravity.END or Gravity.BOTTOM).apply {
+            marginEnd = dp(17)
+            bottomMargin = dp(94)
+        })
+        bubble.post {
+            val fx = bubbleXFraction
+            val fy = bubbleYFraction
+            if (fx != null && fy != null && bubble.parent === layer) {
+                val travelX = max(1, layer.width - layer.paddingLeft - layer.paddingRight - bubble.width)
+                val travelY = max(1, layer.height - layer.paddingTop - layer.paddingBottom - bubble.height)
+                bubble.x = layer.paddingLeft + fx.coerceIn(0f, 1f) * travelX
+                bubble.y = layer.paddingTop + fy.coerceIn(0f, 1f) * travelY
+            }
+        }
+        val slop = ViewConfiguration.get(this).scaledTouchSlop.toFloat()
+        var downX = 0f
+        var downY = 0f
+        var startX = 0f
+        var startY = 0f
+        var dragging = false
+        bubble.setOnTouchListener { view, event ->
+            when (event.actionMasked) {
+                MotionEvent.ACTION_DOWN -> {
+                    downX = event.rawX
+                    downY = event.rawY
+                    startX = view.x
+                    startY = view.y
+                    dragging = false
+                    true
+                }
+                MotionEvent.ACTION_MOVE -> {
+                    val dx = event.rawX - downX
+                    val dy = event.rawY - downY
+                    if (abs(dx) > slop || abs(dy) > slop) dragging = true
+                    if (dragging) {
+                        view.x = (startX + dx).coerceIn(layer.paddingLeft.toFloat(),
+                            max(layer.paddingLeft, layer.width - layer.paddingRight - view.width).toFloat())
+                        view.y = (startY + dy).coerceIn(layer.paddingTop.toFloat(),
+                            max(layer.paddingTop, layer.height - layer.paddingBottom - view.height).toFloat())
+                    }
+                    true
+                }
+                MotionEvent.ACTION_UP -> {
+                    if (dragging) {
+                        val travelX = max(1, layer.width - layer.paddingLeft - layer.paddingRight - view.width)
+                        val travelY = max(1, layer.height - layer.paddingTop - layer.paddingBottom - view.height)
+                        bubbleXFraction = ((view.x - layer.paddingLeft) / travelX).coerceIn(0f, 1f)
+                        bubbleYFraction = ((view.y - layer.paddingTop) / travelY).coerceIn(0f, 1f)
+                    } else {
+                        view.performClick()
+                    }
+                    true
+                }
+                MotionEvent.ACTION_CANCEL -> true
+                else -> false
+            }
+        }
+        if (modulePanelOpen) attachModulePanel(layer)
+    }
+
+    private fun floatingPill(layer: FrameLayout, title: String, bottom: Int): TextView {
+        val pill = TextView(this).apply {
+            text = title
+            textSize = 12f
+            typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
+            setTextColor(primary)
+            gravity = Gravity.CENTER
+            background = rounded(panel, outline, 12)
+            setPadding(dp(14), dp(10), dp(14), dp(10))
+            elevation = dp(5).toFloat()
+        }
+        layer.addView(pill, FrameLayout.LayoutParams(
+            ViewGroup.LayoutParams.WRAP_CONTENT, dp(40),
+            Gravity.START or Gravity.BOTTOM
+        ).apply {
+            marginStart = dp(16)
+            bottomMargin = bottom
+        })
+        return pill
+    }
+
+    private fun attachModulePanel(layer: FrameLayout) {
+        val scrim = FrameLayout(this).apply {
+            setBackgroundColor(Color.argb(172, 0, 0, 0))
+            isClickable = true
+            setOnClickListener { modulePanelOpen = false; render() }
+        }
+        layer.addView(scrim, FrameLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT
+        ))
+        val availableWidth = resources.displayMetrics.widthPixels - dp(32)
+        val panelWidth = min(availableWidth, dp(360))
+        val panelHeight = min((resources.displayMetrics.heightPixels * 0.65f).toInt(), dp(590))
+        val panel = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            background = rounded(panel, outline, 20)
+            elevation = dp(14).toFloat()
+            setPadding(dp(18), dp(18), dp(18), dp(16))
+            isClickable = true
+        }
+        scrim.addView(panel, FrameLayout.LayoutParams(panelWidth, panelHeight,
+            Gravity.END or Gravity.BOTTOM).apply {
+            marginEnd = dp(16)
+            bottomMargin = dp(89)
+        })
+        val header = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        val heading = TextView(this).apply {
+            text = "MODULE CONTROLS"
+            textSize = 15f
+            typeface = Typeface.create("sans-serif-medium", Typeface.BOLD)
+            setTextColor(primary)
+        }
+        header.addView(heading, LinearLayout.LayoutParams(0, dp(48), 1f).apply {
+            gravity = Gravity.CENTER_VERTICAL
+        })
+        val close = TextView(this).apply {
+            text = "✕"
+            textSize = 20f
+            gravity = Gravity.CENTER
+            setTextColor(primary)
+            background = touchBackground(elevated, outline, 12)
+            isClickable = true
+            isFocusable = true
+            contentDescription = "Close module controls"
+            setOnClickListener { modulePanelOpen = false; render() }
+        }
+        header.addView(close, LinearLayout.LayoutParams(dp(48), dp(48)))
+        panel.addView(header)
+        label(panel, "Argon app only · not an overlay in Minecraft", 12f, muted, false, 15)
+        val scroll = ScrollView(this).apply {
+            isFillViewport = false
+            clipToPadding = false
+        }
+        panel.addView(scroll, LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f
+        ))
+        val rows = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        scroll.addView(rows)
+        label(rows, "AVAILABLE NOW", 11f, accent, true, 10)
+        AppModuleRegistry.all.forEach { spec ->
+            val row = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+                background = rounded(elevated, outline, 14)
+                setPadding(dp(12), dp(11), dp(10), dp(11))
+            }
+            rows.addView(row, LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
+            ).apply { bottomMargin = dp(10) })
+            val descriptions = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+            row.addView(descriptions, LinearLayout.LayoutParams(0,
+                ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+            label(descriptions, spec.title, 14f, primary, true, 4)
+            label(descriptions, spec.description, 11f, muted)
+            val toggle = Switch(this).apply {
+                isChecked = appModuleStore.isEnabled(spec.id)
+                minHeight = dp(48)
+                contentDescription = "Enable ${spec.title} inside Argon"
+                thumbTintList = ColorStateList.valueOf(if (isChecked) accent else muted)
+                setOnCheckedChangeListener { _, checked -> setAppModuleEnabled(spec.id, checked) }
+            }
+            row.addView(toggle, LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, dp(48)
+            ))
+        }
+        space(rows, 8)
+        label(rows, "MINECRAFT  ·  NOT AVAILABLE", 11f, muted, true, 9)
+        ModuleCatalog.all.take(4).forEach { spec ->
+            val planned = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                background = rounded(panel, outline, 12)
+                setPadding(dp(12), dp(12), dp(12), dp(12))
+            }
+            rows.addView(planned, LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
+            ).apply { bottomMargin = dp(8) })
+            label(planned, spec.title + "  ·  Planned", 13f, muted, true, 4)
+            label(planned, "No verified Minecraft integration. Cannot enable.", 11f, muted)
+        }
+        action(panel, "Browse planned modules") {
+            modulePanelOpen = false
+            page = Page.MODULES
+            render()
+        }
     }
 
     private fun exportProfiles() {
