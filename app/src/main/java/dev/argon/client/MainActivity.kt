@@ -43,6 +43,7 @@ import dev.argon.client.data.ModuleStore
 import dev.argon.client.data.AppModuleStore
 import dev.argon.client.performance.UiFrameRateMonitor
 import dev.argon.client.overlay.MinecraftOverlayService
+import dev.argon.client.overlay.FpsPackInfo
 import java.io.IOException
 import java.nio.charset.StandardCharsets
 import kotlin.math.roundToInt
@@ -144,6 +145,15 @@ class MainActivity : Activity() {
             launchMinecraftWithOverlay()
         } else {
             Toast.makeText(this, "Overlay permission not granted. Minecraft was not launched.", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    private fun openFpsPackPage() {
+        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(FpsPackInfo.PROJECT_URL))
+        try {
+            startActivity(intent)
+        } catch (_: RuntimeException) {
+            Toast.makeText(this, "Could not open FPS pack page in a browser", Toast.LENGTH_LONG).show()
         }
     }
 
@@ -421,13 +431,19 @@ class MainActivity : Activity() {
             }
         }
         card(parent) { body ->
+            label(body, "MINECRAFT FPS  ·  NO SHIZUKU REQUIRED", 11f, accent, true, 9)
+            label(body, "Use a Minecraft Bedrock FPS resource pack to display frame rate inside Minecraft. This uses the game's rendering features rather than Android diagnostics.", 13f, primary, false, 8)
+            label(body, "Download from the independent pack author's page, import the .mcpack, then enable it in Minecraft's Global Resources. Argon cannot remotely toggle game resource packs.", 12f, muted)
+            action(body, "Get Minecraft FPS resource pack  ↗") { openFpsPackPage() }
+        }
+        card(parent) { body ->
             label(body, "APP FPS  ·  OPTIONAL MODULE", 11f, accent, true, 11)
             if (appModuleStore.isEnabled(AppModuleRegistry.UI_FPS)) {
                 fpsReadout = label(body, "—", 30f, primary, true, 7)
                 label(body, "Measured from Argon's own rendered frames. Idle windows show a dash. Not Minecraft FPS.", 12f, muted)
             } else {
                 label(body, "Off", 22f, primary, true, 7)
-                label(body, "Open the floating A icon to enable the app FPS counter.", 12f, muted)
+                label(body, "Open the Modules tab and its floating A icon to enable the app-only FPS meter.", 12f, muted)
             }
         }
         val style = store.selected()
