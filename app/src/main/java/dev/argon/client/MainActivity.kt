@@ -10,6 +10,8 @@ import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
 import android.os.PowerManager
+import android.provider.Settings
+import android.net.Uri
 import android.view.Gravity
 import android.view.MotionEvent
 import android.view.ViewConfiguration
@@ -40,6 +42,8 @@ import dev.argon.client.core.NoGameIntegration
 import dev.argon.client.data.ModuleStore
 import dev.argon.client.data.AppModuleStore
 import dev.argon.client.performance.UiFrameRateMonitor
+import dev.argon.client.overlay.MinecraftOverlayService
+import dev.argon.client.overlay.FpsPackInfo
 import java.io.IOException
 import java.nio.charset.StandardCharsets
 import kotlin.math.roundToInt
@@ -67,6 +71,7 @@ class MainActivity : Activity() {
     private lateinit var moduleStore: ModuleStore
     private lateinit var appModuleStore: AppModuleStore
     private var modulePanelOpen = false
+    private var awaitingOverlayPermission = false
     private var bubbleXFraction: Float? = null
     private var bubbleYFraction: Float? = null
     private var foreground = false
@@ -102,6 +107,7 @@ class MainActivity : Activity() {
             page = Page.entries.firstOrNull { it.name == saved } ?: Page.DASHBOARD
         }
         modulePanelOpen = savedInstanceState?.getBoolean("module_panel_open") ?: false
+        awaitingOverlayPermission = savedInstanceState?.getBoolean("awaiting_overlay_permission") ?: false
         if (savedInstanceState?.containsKey("bubble_x_fraction") == true) {
             bubbleXFraction = savedInstanceState.getFloat("bubble_x_fraction")
             bubbleYFraction = savedInstanceState.getFloat("bubble_y_fraction")
@@ -112,6 +118,7 @@ class MainActivity : Activity() {
     override fun onSaveInstanceState(outState: Bundle) {
         outState.putString("argon_page", page.name)
         outState.putBoolean("module_panel_open", modulePanelOpen)
+        outState.putBoolean("awaiting_overlay_permission", awaitingOverlayPermission)
         bubbleXFraction?.let {
             outState.putFloat("bubble_x_fraction", it)
             outState.putFloat("bubble_y_fraction", bubbleYFraction ?: 0.5f)
@@ -128,6 +135,59 @@ class MainActivity : Activity() {
     override fun onResume() {
         super.onResume()
         if (::store.isInitialized) render()
+        if (awaitingOverlayPermission) finishOverlayPermissionRequest()
+    }
+
+    private fun finishOverlayPermissionRequest() {
+        if (!awaitingOverlayPermission) return
+        awaitingOverlayPermission = false
+        if (Settings.canDrawOverlays(this)) {
+            launchMinecraftWithOverlay()
+        } else {
+            Toast.makeText(this, "Overlay permission not granted. Minecraft was not launched.", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    private fun openFpsPackPage() {
+        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(FpsPackInfo.PROJECT_URL))
+        try {
+            startActivity(intent)
+        } catch (_: RuntimeException) {
+            Toast.makeText(this, "Could not open FPS pack page in a browser", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    private fun launchMinecraftWithOverlay() {
+        if (!MinecraftLauncher.isInstalled(this)) {
+            Toast.makeText(this, "Minecraft is not installed", Toast.LENGTH_SHORT).show()
+            return
+        }
+        if (!Settings.canDrawOverlays(this)) {
+            awaitingOverlayPermission = true
+            try {
+                startActivityForResult(
+                    Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName")),
+                    REQUEST_OVERLAY_PERMISSION
+                )
+            } catch (_: RuntimeException) {
+                awaitingOverlayPermission = false
+                Toast.makeText(this, "Cannot open overlay permission settings", Toast.LENGTH_LONG).show()
+            }
+            return
+        }
+        try {
+            startForegroundService(
+                Intent(this, MinecraftOverlayService::class.java)
+                    .setAction(MinecraftOverlayService.ACTION_START)
+            )
+        } catch (error: RuntimeException) {
+            Toast.makeText(this, "Could not start overlay: " + (error.message ?: "not allowed"), Toast.LENGTH_LONG).show()
+            return
+        }
+        if (!MinecraftLauncher.open(this)) {
+            stopService(Intent(this, MinecraftOverlayService::class.java))
+            Toast.makeText(this, "Could not launch Minecraft", Toast.LENGTH_LONG).show()
+        }
     }
 
     @Deprecated("Activity back handling keeps the floating sheet dismissible on API 26+")
@@ -341,7 +401,9 @@ class MainActivity : Activity() {
         layer.addView(root, FrameLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT
         ))
-        attachFloatingControls(layer)
+        // Keep Argon's companion-module editor on its Modules page. The cross-app
+        // menu is a separate opt-in service launched alongside Minecraft.
+        if (page == Page.MODULES) attachFloatingControls(layer)
         setContentView(layer)
         updateFpsLabels()
     }
@@ -352,12 +414,27 @@ class MainActivity : Activity() {
             label(body, "GAME CONNECTION", 11f, accent, true, 11)
             val installed = MinecraftLauncher.isInstalled(this)
             label(body, if (installed) "Minecraft is installed" else "Minecraft is not installed", 19f, primary, true, 7)
-            label(body, "Argon can open the official game. It cannot change in-game settings yet.", 13f, muted)
-            action(body, if (installed) "Launch Minecraft  ↗" else "Launch unavailable", true, installed) {
+            label(body, "Open Minecraft with an optional floating Argon menu. Android will ask for Display over other apps permission. The overlay can remain visible over other apps until stopped.", 13f, muted)
+            action(body, "Launch with floating Argon menu  ↗", true, installed) {
+                launchMinecraftWithOverlay()
+            }
+            action(body, if (installed) "Launch Minecraft without overlay" else "Minecraft unavailable", false, installed) {
                 if (!MinecraftLauncher.open(this)) {
                     Toast.makeText(this, "Could not open Minecraft", Toast.LENGTH_SHORT).show()
                 }
             }
+            if (MinecraftOverlayService.active) {
+                action(body, "Stop floating overlay") {
+                    stopService(Intent(this, MinecraftOverlayService::class.java))
+                    Toast.makeText(this, "Overlay stop requested", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+        card(parent) { body ->
+            label(body, "MINECRAFT FPS  ·  NO SHIZUKU REQUIRED", 11f, accent, true, 9)
+            label(body, "Use a Minecraft Bedrock FPS resource pack to display frame rate inside Minecraft. This uses the game's rendering features rather than Android diagnostics.", 13f, primary, false, 8)
+            label(body, "Download from the independent pack author's page, import the .mcpack, then enable it in Minecraft's Global Resources. Argon cannot remotely toggle game resource packs.", 12f, muted)
+            action(body, "Get Minecraft FPS resource pack  ↗") { openFpsPackPage() }
         }
         card(parent) { body ->
             label(body, "APP FPS  ·  OPTIONAL MODULE", 11f, accent, true, 11)
@@ -366,7 +443,7 @@ class MainActivity : Activity() {
                 label(body, "Measured from Argon's own rendered frames. Idle windows show a dash. Not Minecraft FPS.", 12f, muted)
             } else {
                 label(body, "Off", 22f, primary, true, 7)
-                label(body, "Open the floating A icon to enable the app FPS counter.", 12f, muted)
+                label(body, "Open the Modules tab and its floating A icon to enable the app-only FPS meter.", 12f, muted)
             }
         }
         val style = store.selected()
@@ -463,7 +540,7 @@ class MainActivity : Activity() {
 
     private fun modules(parent: LinearLayout) {
         label(parent, "NOT ACTIVE IN MINECRAFT", 11f, accent, true, 8)
-        label(parent, "Save a wishlist of proposed modules. None can change the game yet.", 13f, muted, false, 17)
+        label(parent, "Save a wishlist of proposed Minecraft modules. The floating A icon on this page configures Argon-only widgets. The game overlay has separate supported widgets.", 13f, muted, false, 17)
         card(parent) { body ->
             label(body, "MODULE INTEGRATION", 11f, accent, true, 6)
             label(body, "0 active  •  ${ModuleCatalog.all.size} planned", 17f, primary, true, 6)
@@ -542,6 +619,10 @@ class MainActivity : Activity() {
                 label(body, module.description, 13f, muted, false, 8)
                 val status = ModuleGate.status(module, NoGameIntegration)
                 label(body, "In-game status: " + status.label, 12f, muted, true)
+                if (module.id == "fps_counter") {
+                    label(body, "Alternative: import a third-party FPS resource pack directly into Minecraft. Argon does not control whether that pack is active.", 12f, muted, false, 5)
+                    action(body, "Get Minecraft FPS resource pack  ↗") { openFpsPackPage() }
+                }
                 action(body, if (moduleStore.isDesired(module.id)) "Remove from wishlist" else "Add to wishlist") {
                     moduleStore.setDesired(module.id, !moduleStore.isDesired(module.id))
                     renderModuleCards(target)
@@ -886,6 +967,10 @@ class MainActivity : Activity() {
     @Deprecated("Using the framework activity result API to avoid third-party runtime dependencies")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == REQUEST_OVERLAY_PERMISSION) {
+            finishOverlayPermissionRequest()
+            return
+        }
         if (resultCode != RESULT_OK) return
         val uri = data?.data ?: return
         try {
@@ -923,5 +1008,6 @@ class MainActivity : Activity() {
     private companion object {
         const val REQUEST_EXPORT = 1001
         const val REQUEST_IMPORT = 1002
+        const val REQUEST_OVERLAY_PERMISSION = 1003
     }
 }
