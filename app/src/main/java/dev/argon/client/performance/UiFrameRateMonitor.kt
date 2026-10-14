@@ -29,7 +29,7 @@ class UiFrameRateMonitor(
             val snapshot = sampler
             val fps = snapshot?.let { synchronized(it) { it.currentFps(System.nanoTime()) } }
             onSample(fps)
-            mainHandler.postDelayed(this, 1_000L)
+            mainHandler.postDelayed(this, 500L)
         }
     }
 
