@@ -33,6 +33,7 @@ import dev.argon.client.core.ModuleCategory
 import dev.argon.client.core.ModuleGate
 import dev.argon.client.core.NoGameIntegration
 import dev.argon.client.data.ModuleStore
+import dev.argon.client.performance.UiFrameRateMonitor
 import java.io.IOException
 import java.nio.charset.StandardCharsets
 import kotlin.math.roundToInt
@@ -58,6 +59,8 @@ class MainActivity : Activity() {
     private var moduleQuery: String = ""
     private var moduleFilter: ModuleCategory? = null
     private lateinit var device: DeviceSnapshot
+    private lateinit var fpsMonitor: UiFrameRateMonitor
+    private var fpsReadout: TextView? = null
     private var page = Page.DASHBOARD
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -74,6 +77,17 @@ class MainActivity : Activity() {
         )
         store = ProfileStore(this, device)
         moduleStore = ModuleStore(this)
+        fpsMonitor = UiFrameRateMonitor(window) { measured ->
+            val value = if (measured == null) "—" else "${measured.roundToInt()} FPS"
+            fpsReadout?.let {
+                if (it.text.toString() != value) it.text = value
+                it.contentDescription = if (measured == null) {
+                    "Argon app frame rate unavailable while idle"
+                } else {
+                    "Argon app frame rate ${measured.roundToInt()} frames per second"
+                }
+            }
+        }
         savedInstanceState?.getString("argon_page")?.let { saved ->
             page = Page.entries.firstOrNull { it.name == saved } ?: Page.DASHBOARD
         }
@@ -85,9 +99,19 @@ class MainActivity : Activity() {
         super.onSaveInstanceState(outState)
     }
 
+    override fun onStart() {
+        super.onStart()
+        fpsMonitor.start()
+    }
+
     override fun onResume() {
         super.onResume()
         if (::store.isInitialized) render()
+    }
+
+    override fun onStop() {
+        fpsMonitor.stop()
+        super.onStop()
     }
 
     private fun dp(value: Int): Int = (value * resources.displayMetrics.density).roundToInt()
@@ -172,6 +196,8 @@ class MainActivity : Activity() {
     }
 
     private fun render() {
+        // Old views must not be retained when switching pages or recreating the root.
+        fpsReadout = null
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setBackgroundColor(backgroundColor)
@@ -265,6 +291,13 @@ class MainActivity : Activity() {
                     Toast.makeText(this, "Could not open Minecraft", Toast.LENGTH_SHORT).show()
                 }
             }
+        }
+        card(parent) { body ->
+            label(body, "PERFORMANCE  ·  ARGON APP ONLY", 11f, accent, true, 11)
+            fpsReadout = label(body, "—", 30f, primary, true, 7).apply {
+                contentDescription = "Argon app frame rate unavailable while idle"
+            }
+            label(body, "Measured from frames rendered by Argon's own window during interaction. A dash means idle or insufficient samples. This is not Minecraft FPS.", 12f, muted)
         }
         val style = store.selected()
         val advice = ArgonFlow.recommend(style, device)

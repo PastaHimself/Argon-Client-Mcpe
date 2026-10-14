@@ -12,6 +12,7 @@ Existing Bedrock clients already offer HUD widgets, cosmetics and toggles. Argon
 
 Current foundation:
 - Native Android app with a dark, mobile-first dashboard.
+- **Measured Argon UI FPS** from Android's real window frame timestamps; shown on the Overview screen while the app is actively redrawing. Displays a dash when idle/insufficient data. This is not Minecraft FPS.
 - Playstyle profiles (PvP, Building, Exploration), customizable control scale / HUD visibility / visual preference.
 - **Argon Flow** recommendations based on Android's low-RAM flag, application memory class, refresh rate and battery-saver mode, with clear explanations.
 - Offline persistence and JSON import/export through Android's Storage Access Framework.
@@ -27,10 +28,11 @@ Current foundation:
 | --- | --- |
 | Profile selection, edits and saved preferences | Implemented in Argon |
 | Device-based recommendations | Implemented in Argon |
+| Argon window render FPS | Implemented in Argon only (not Minecraft) |
 | JSON import and export | Implemented in Argon |
 | Launch an installed Minecraft | Implemented via Android package manager |
 | Module catalog, filtering and wishlist | Implemented inside Argon (no in-game effect) |
-| Minecraft module execution | **Not implemented** |
+| Minecraft module execution, including in-game FPS Counter | **Not implemented** |
 | Apply HUD/control changes **inside** Minecraft | **Not implemented** |
 | FPS optimization and graphics engine mods | **Not implemented** |
 | In-game overlay or native hooks | **Not implemented** |
@@ -51,6 +53,7 @@ The GitHub Actions workflow performs the same build and JVM tests. This minimal 
 - `data/`: local profiles, wishlist state, validation and portable JSON schema.
 - `core/ModuleCatalog.kt`: stable module IDs, capabilities and activation guard (no compatible game integration is available).
 - `MainActivity`: native Android UI, dashboard, profiles and import/export.
+- `performance/UiFrameRateMonitor.kt` + `core/FrameRateSampler.kt`: observed window frames, recent-rate calculation, idle handling, and lifecycle cleanup. Android may drop frame-metric reports, so FPS is an estimate of Argon's own reported render cadence, not a device benchmark.
 - `MinecraftLauncher`: checks and opens the installed official app.
 - `docs/ROADMAP.md`: compatibility-aware path toward a real modded client.
 
