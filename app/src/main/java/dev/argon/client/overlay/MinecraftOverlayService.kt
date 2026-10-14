@@ -8,6 +8,7 @@ import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
 import android.content.Intent
+import android.net.Uri
 import android.content.res.ColorStateList
 import android.content.res.Configuration
 import android.graphics.Color
@@ -32,6 +33,7 @@ import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.Switch
 import android.widget.TextView
+import android.widget.Toast
 import dev.argon.client.MainActivity
 import dev.argon.client.R
 import dev.argon.client.core.ModuleCatalog
@@ -325,8 +327,37 @@ class MinecraftOverlayService : Service() {
             }
             line.addView(toggle)
         }
-        rows.addView(label("MINECRAFT DATA  ·  UNAVAILABLE", 11f, secondary))
-        ModuleCatalog.all.take(5).forEach { spec ->
+        rows.addView(label("MINECRAFT FPS  ·  RESOURCE PACK", 11f, mint))
+        rows.addView(label(
+            "A game-side FPS counter is possible with a Bedrock resource pack. " +
+                "Install and enable the pack in Minecraft; this panel cannot toggle it.",
+            12f, secondary
+        ))
+        val installPack = TextView(this).apply {
+            text = "Get Minecraft FPS Pack  ↗"
+            textSize = 13f
+            setTextColor(fg)
+            gravity = Gravity.CENTER
+            minHeight = dp(48)
+            background = ripple(elevated)
+            isClickable = true
+            isFocusable = true
+            contentDescription = "Open independent Minecraft FPS resource pack page in browser"
+            setOnClickListener {
+                try {
+                    startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(FpsPackInfo.PROJECT_URL))
+                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                } catch (_: RuntimeException) {
+                    Toast.makeText(this@MinecraftOverlayService,
+                        "Open Argon Overview to get the FPS pack", Toast.LENGTH_LONG).show()
+                }
+            }
+        }
+        rows.addView(installPack, LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT, dp(48)
+        ).apply { bottomMargin = dp(12) })
+        rows.addView(label("OTHER GAME MODULES  ·  NOT INTEGRATED", 11f, secondary))
+        ModuleCatalog.all.filter { it.id != "fps_counter" }.take(4).forEach { spec ->
             rows.addView(label("${spec.title}  ·  not supported", 12f, secondary))
         }
         val close = TextView(this).apply {
