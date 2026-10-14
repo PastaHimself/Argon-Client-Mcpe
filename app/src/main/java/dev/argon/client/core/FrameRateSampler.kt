@@ -41,7 +41,7 @@ class FrameRateSampler {
 
     private companion object {
         const val WINDOW_NANOS = 1_000_000_000L
-        const val IDLE_NANOS = 500_000_000L
+        const val IDLE_NANOS = 1_000_000_000L
         const val MIN_SPAN_NANOS = 250_000_000L
         const val MIN_SAMPLES = 8
     }
