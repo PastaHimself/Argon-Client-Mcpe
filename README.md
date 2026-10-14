@@ -12,7 +12,7 @@ Existing Bedrock clients already offer HUD widgets, cosmetics and toggles. Argon
 
 Current foundation:
 - Native Android app with a dark, mobile-first dashboard.
-- **Opt-in cross-app overlay:** launching Minecraft with the overlay option creates a draggable mint **A** icon above Minecraft through Android's user-granted display-over-other-apps capability. The menu supports real Android local time and device status widgets, with unsupported Minecraft FPS and other game-data modules visibly unavailable. The overlay remains active over other apps until stopped via menu/notification.
+- **Opt-in cross-app overlay:** launching Minecraft with the overlay option creates a draggable mint **A** icon above Minecraft through Android's user-granted display-over-other-apps capability. The menu supports Android local time and device status. It also links to an independently installed Minecraft FPS resource pack; Argon does not receive that FPS value or control the pack. The overlay remains active over other apps until stopped via menu/notification.
 - **Argon-only UI modules:** the previous in-app module editor is still on the Modules page; its App FPS uses Argon's frame timestamps only, not Minecraft frames.
 - Playstyle profiles (PvP, Building, Exploration), customizable control scale / HUD visibility / visual preference.
 - **Argon Flow** recommendations based on Android's low-RAM flag, application memory class, refresh rate and battery-saver mode, with clear explanations.
@@ -37,7 +37,8 @@ Current foundation:
 | JSON import and export | Implemented in Argon |
 | Launch an installed Minecraft | Implemented via Android package manager |
 | Module catalog, filtering and wishlist | Implemented inside Argon (no in-game effect) |
-| Minecraft module execution, including in-game FPS Counter | **Not implemented** |
+| Minecraft FPS resource pack setup link | Implemented: opens third-party pack page; pack must be imported and enabled inside Minecraft |
+| Direct Minecraft FPS telemetry and toggling in Argon's overlay | **Not implemented** |
 | Apply HUD/control changes **inside** Minecraft | **Not implemented** |
 | FPS optimization and graphics engine mods | **Not implemented** |
 | In-game overlay or native hooks | **Not implemented** |
@@ -71,7 +72,7 @@ The Android UI intentionally uses platform widgets and zero third-party runtime 
 
 1. Install Minecraft independently, open Argon and choose **Launch with floating Argon menu**.
 2. Grant Android's **Display over other apps** permission on the Settings screen. Argon will attempt to start an ongoing foreground service and then launch Minecraft.
-3. Drag the floating **A** icon to reposition it. Tap for the module menu: Android **Clock** and **Device Status** can be toggled on/off and saved across sessions. Planned Minecraft FPS, CPS, coordinates, and other game telemetry are explicitly unavailable.
+3. Drag the floating **A** icon to reposition it. Tap for the module menu: Android **Clock** and **Device Status** can be toggled on/off. The menu also provides a **Get Minecraft FPS Pack** link for a separate in-game resource pack; other game telemetry remains unavailable.
 4. Stop the overlay from **Stop overlay** in the floating menu, the notification's **Stop overlay** action, or Argon's **Stop floating overlay** button. You can also launch Minecraft *without* the overlay from Argon.
 
 **Privacy and behavior:** this is an Android `TYPE_APPLICATION_OVERLAY` over other apps, not a Minecraft mod. Android does not automatically tell this app when Minecraft exits, so the user-started overlay **can remain visible over other apps** until explicitly stopped. It neither records the screen nor accesses Minecraft's process, saved data or accounts. Draw-over-other-apps is optional and must be explicitly approved. The special-use foreground service has an ongoing notification; Google Play distribution of `specialUse` services requires separate policy review. Some versions of Android, OEM policies and games may restrict external overlays. Real Minecraft FPS is **not available** from Android's system overlay permission.
@@ -81,3 +82,9 @@ The prior Argon-only floating module editor is now accessible on **Modules**, ra
 ## Project boundaries
 
 Independent, unofficial project. Not affiliated with Mojang or Microsoft. Users must own and install Minecraft separately. Do not distribute Minecraft binaries or copyrighted assets through Argon. Server rules may prohibit client modifications; compatibility and allowed modifications must be reviewed per game version and server.
+
+### Actual Minecraft FPS without Shizuku
+
+Argon links to a separately distributed Bedrock FPS resource pack that renders frame timing **inside Minecraft**. Install the `.mcpack` manually, then enable it in Minecraft's **Settings → Global Resources** or the world's Resource Packs. This does not use Shizuku, root, wireless debugging or screen capture. It is **not** a toggle that Argon can control or a reading that Argon's overlay can access. The original resource pack remains owned by its creator and is **not bundled** with Argon.
+
+See [the setup and compatibility guide](docs/FPS_WITHOUT_SHIZUKU.md) for installation steps and limitations.
