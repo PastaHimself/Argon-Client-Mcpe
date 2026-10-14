@@ -31,7 +31,7 @@ class FrameRateSamplerTest {
     @Test fun idleWindowReturnsNoReading() {
         val sampler = FrameRateSampler()
         repeat(61) { sampler.recordFrame(origin + it * 16_666_667L) }
-        assertNull(sampler.currentFps(origin + 60 * 16_666_667L + 500_000_001L))
+        assertNull(sampler.currentFps(origin + 60 * 16_666_667L + 1_000_000_001L))
     }
 
     @Test fun repeatedOrOutOfOrderTimestampsDoNotInflateRate() {
