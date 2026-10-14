@@ -177,7 +177,7 @@ class MinecraftOverlayService : Service() {
     @Suppress("DEPRECATION")
     private fun screenSize(): Point = Point().also { wm.defaultDisplay.getSize(it) }
 
-    private fun layout(width: Int, height: Int, x: Int, y: Int): WindowManager.LayoutParams =
+    private fun layout(width: Int, height: Int, screenX: Int, screenY: Int): WindowManager.LayoutParams =
         WindowManager.LayoutParams(
             width, height, WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
@@ -185,8 +185,8 @@ class MinecraftOverlayService : Service() {
             PixelFormat.TRANSLUCENT
         ).apply {
             gravity = Gravity.TOP or Gravity.START
-            this.x = x
-            this.y = y
+            this.x = screenX
+            this.y = screenY
         }
 
     private fun addBubble() {
@@ -357,8 +357,13 @@ class MinecraftOverlayService : Service() {
         container.addView(stop, LinearLayout.LayoutParams(
             LinearLayout.LayoutParams.MATCH_PARENT, dp(46)
         ))
-        wm.addView(container, layout(width, height, x, y))
-        sheet = container
+        try {
+            wm.addView(container, layout(width, height, x, y))
+            sheet = container
+        } catch (error: RuntimeException) {
+            android.util.Log.w("ArgonOverlay", "Overlay panel rejected by Android", error)
+            stopSelf()
+        }
     }
 
     private fun label(value: String, size: Float, color: Int): TextView =
@@ -391,16 +396,23 @@ class MinecraftOverlayService : Service() {
         }
         updateWidgetLabels()
         // A small noninteractive HUD; it never captures the game's touch events.
-        wm.addView(stack, layout(
-            WindowManager.LayoutParams.WRAP_CONTENT,
-            WindowManager.LayoutParams.WRAP_CONTENT,
-            dp(12), dp(76)
-        ).apply {
-            flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-                WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or
-                WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL
-        })
-        hud = stack
+        try {
+            wm.addView(stack, layout(
+                WindowManager.LayoutParams.WRAP_CONTENT,
+                WindowManager.LayoutParams.WRAP_CONTENT,
+                dp(12), dp(76)
+            ).apply {
+                flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                    WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or
+                    WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL
+                // Android 12+ blocks touch-through on highly obscuring overlays.
+                alpha = 0.7f
+            })
+            hud = stack
+        } catch (error: RuntimeException) {
+            android.util.Log.w("ArgonOverlay", "Overlay widget rejected by Android", error)
+            stopSelf()
+        }
     }
 
     private fun updateWidgetLabels() {
