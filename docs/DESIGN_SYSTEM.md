@@ -29,3 +29,12 @@ No new runtime dependencies, permissions, network requests or Minecraft integrat
 - **App FPS** uses real Window frame callback samples, displays no reading while idle, and stops collecting when disabled or backgrounded. **Device Status** shows app memory class and battery-saver state, not game telemetry.
 - Planned Minecraft modules are text-only disabled rows, never toggles, until the capability gate is legitimately implemented.
 - **Device checks required:** drag, rotate, scroll behind sheet, Android back navigation, TalkBack focus, toggles after process recreation, lowest supported API 26, landscape clipping, and no HUD over another app.
+
+## Minecraft floating overlay (new opt-in surface)
+
+- Argon's **Launch with floating Argon menu** starts an Android `TYPE_APPLICATION_OVERLAY` only after the user grants `SYSTEM_ALERT_WINDOW` through Settings; **Launch without overlay** needs no permission.
+- A 56dp draggable mint button floats above Minecraft and other apps. The compact, bounded sheet includes only supported Android-owned widgets (Clock, Device Status) as switches. Minecraft FPS, CPS, Ping, game coordinates and other game modules remain **unavailable**, not switches.
+- The owner foreground service uses Android `specialUse` with an ongoing notification and clear **Stop overlay** action. A stop action also appears in the sheet and in Argon. The menu does not cover the whole screen, so interactions outside its bounds continue to reach the game.
+- The HUD is noninteractive, uses a restricted opacity, and displays no fabricated gameplay metrics. The overlay is a system-level window, **not** a Minecraft game modification or a version-specific integration.
+- The service does **not** track which app is in the foreground. It may remain over other applications after Minecraft closes. Inform the user; no Usage Access or Accessibility Service is requested. Validate Google Play foreground-service declarations/policy prior to public distribution.
+- Device-only test matrix: API 26, 34 and 35; Android 15+, phones/tablets, Minecraft fullscreen; permission denied/granted/revoked, notification stop, app exit/return, screen rotation, drag and touch-through, task killer, and OEM permission limitations.
