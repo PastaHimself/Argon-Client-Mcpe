@@ -3,7 +3,9 @@ package dev.argon.client
 import android.app.Activity
 import android.app.ActivityManager
 import android.content.Intent
+import android.content.res.ColorStateList
 import android.graphics.Color
+import android.graphics.drawable.RippleDrawable
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
@@ -42,12 +44,14 @@ import kotlin.math.roundToInt
 class MainActivity : Activity() {
     private enum class Page { DASHBOARD, PROFILES, MODULES, ABOUT }
 
-    private val backgroundColor = Color.rgb(10, 16, 27)
-    private val panel = Color.rgb(23, 32, 48)
-    private val accent = Color.rgb(109, 221, 192)
-    private val primary = Color.rgb(239, 245, 250)
-    private val muted = Color.rgb(163, 181, 196)
-    private val outline = Color.rgb(47, 65, 80)
+    // A restrained, high-contrast palette shared by every screen.
+    private val backgroundColor = Color.rgb(11, 16, 22)
+    private val panel = Color.rgb(21, 29, 38)
+    private val elevated = Color.rgb(29, 39, 49)
+    private val accent = Color.rgb(168, 235, 200)
+    private val primary = Color.rgb(245, 248, 249)
+    private val muted = Color.rgb(171, 185, 195)
+    private val outline = Color.rgb(48, 63, 75)
 
     private lateinit var store: ProfileStore
     private lateinit var moduleStore: ModuleStore
@@ -70,7 +74,15 @@ class MainActivity : Activity() {
         )
         store = ProfileStore(this, device)
         moduleStore = ModuleStore(this)
+        savedInstanceState?.getString("argon_page")?.let { saved ->
+            page = Page.entries.firstOrNull { it.name == saved } ?: Page.DASHBOARD
+        }
         render()
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        outState.putString("argon_page", page.name)
+        super.onSaveInstanceState(outState)
     }
 
     override fun onResume() {
@@ -80,12 +92,20 @@ class MainActivity : Activity() {
 
     private fun dp(value: Int): Int = (value * resources.displayMetrics.density).roundToInt()
 
-    private fun rounded(fill: Int, stroke: Int? = null, radius: Int = 15): GradientDrawable =
+    private fun rounded(fill: Int, stroke: Int? = null, radius: Int = 18): GradientDrawable =
         GradientDrawable().apply {
             cornerRadius = dp(radius).toFloat()
             setColor(fill)
             if (stroke != null) setStroke(dp(1), stroke)
         }
+
+    /** Native ripple feedback with a clipped touch shape, no extra UI dependency. */
+    private fun touchBackground(fill: Int, stroke: Int? = null, radius: Int = 16): RippleDrawable =
+        RippleDrawable(
+            ColorStateList.valueOf(Color.argb(46, 255, 255, 255)),
+            rounded(fill, stroke, radius),
+            rounded(Color.WHITE, radius = radius)
+        )
 
     private fun space(parent: LinearLayout, height: Int = 12) {
         parent.addView(View(this), LinearLayout.LayoutParams(1, dp(height)))
@@ -103,7 +123,7 @@ class MainActivity : Activity() {
             text = content
             textSize = size
             setTextColor(color)
-            if (bold) typeface = Typeface.create("sans-serif-medium", Typeface.BOLD)
+            if (bold) typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
             setLineSpacing(dp(3).toFloat(), 1f)
         }
         parent.addView(view, LinearLayout.LayoutParams(
@@ -115,12 +135,12 @@ class MainActivity : Activity() {
     private fun card(parent: LinearLayout, draw: (LinearLayout) -> Unit) {
         val body = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            background = rounded(panel, outline)
-            setPadding(dp(17), dp(17), dp(17), dp(17))
+            background = rounded(panel, outline, 20)
+            setPadding(dp(20), dp(20), dp(20), dp(20))
         }
         parent.addView(body, LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
-        ).apply { bottomMargin = dp(14) })
+        ).apply { bottomMargin = dp(12) })
         draw(body)
     }
 
@@ -135,13 +155,15 @@ class MainActivity : Activity() {
             text = title
             textSize = 14f
             gravity = Gravity.CENTER
-            typeface = Typeface.create("sans-serif-medium", Typeface.BOLD)
-            setTextColor(if (filled) backgroundColor else if (enabled) accent else muted)
-            background = rounded(if (filled) accent else panel, if (filled) null else outline, 12)
-            setPadding(dp(15), dp(13), dp(15), dp(13))
+            typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
+            setTextColor(if (filled) backgroundColor else if (enabled) primary else muted)
+            background = touchBackground(if (filled) accent else elevated, if (filled) null else outline, 14)
+            minHeight = dp(50)
+            setPadding(dp(16), dp(13), dp(16), dp(13))
+            isEnabled = enabled
             isClickable = enabled
             isFocusable = enabled
-            alpha = if (enabled) 1f else 0.5f
+            alpha = if (enabled) 1f else 0.48f
             if (enabled) setOnClickListener { handler() }
         }
         parent.addView(view, LinearLayout.LayoutParams(
@@ -172,9 +194,49 @@ class MainActivity : Activity() {
             ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f
         ))
 
-        label(content, "A R G O N", 14f, accent, true, 4)
-        label(content, "Built for Bedrock on Android.", 24f, primary, true, 6)
-        label(content, "FOUNDATION 0.1  •  LOCAL ONLY", 11f, muted, true, 24)
+        val identity = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        val monogram = TextView(this).apply {
+            text = "A"
+            textSize = 19f
+            gravity = Gravity.CENTER
+            typeface = Typeface.create("sans-serif-medium", Typeface.BOLD)
+            setTextColor(accent)
+            background = rounded(elevated, outline, 13)
+            contentDescription = "Argon"
+        }
+        identity.addView(monogram, LinearLayout.LayoutParams(dp(42), dp(42)))
+        val wordmark = TextView(this).apply {
+            text = "ARGON"
+            textSize = 15f
+            letterSpacing = 0.17f
+            typeface = Typeface.create("sans-serif-medium", Typeface.BOLD)
+            setTextColor(primary)
+            setPadding(dp(12), 0, 0, 0)
+        }
+        identity.addView(wordmark, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        val version = TextView(this).apply {
+            text = "COMPANION  0.1"
+            textSize = 10f
+            letterSpacing = 0.05f
+            setTextColor(muted)
+            gravity = Gravity.CENTER
+            background = rounded(panel, outline, 12)
+            setPadding(dp(10), dp(8), dp(10), dp(8))
+        }
+        identity.addView(version)
+        content.addView(identity)
+        space(content, 28)
+        val (headline, subtitle) = when (page) {
+            Page.DASHBOARD -> "Your Bedrock space." to "A simpler way to prepare your Android playstyle."
+            Page.PROFILES -> "Play your way." to "Shape your local presets. Minecraft stays unchanged."
+            Page.MODULES -> "The wishlist." to "Explore future modules and save what matters."
+            Page.ABOUT -> "Made for mobile." to "Thoughtful tools, honest capabilities."
+        }
+        label(content, headline, 28f, primary, true, 8)
+        label(content, subtitle, 14f, muted, false, 24)
 
         when (page) {
             Page.DASHBOARD -> dashboard(content)
@@ -182,20 +244,23 @@ class MainActivity : Activity() {
             Page.MODULES -> modules(content)
             Page.ABOUT -> about(content)
         }
+        root.addView(View(this).apply { setBackgroundColor(outline) }, LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, dp(1)
+        ))
         root.addView(navigation(), LinearLayout.LayoutParams(
-            ViewGroup.LayoutParams.MATCH_PARENT, dp(68)
+            ViewGroup.LayoutParams.MATCH_PARENT, dp(72)
         ))
         setContentView(root)
     }
 
     private fun dashboard(parent: LinearLayout) {
-        label(parent, "Your Android. Your playstyle.", 20f, primary, true, 12)
+        label(parent, "YOUR WORKSPACE", 11f, accent, true, 14)
         card(parent) { body ->
-            label(body, "GAME STATUS", 11f, accent, true, 8)
+            label(body, "GAME CONNECTION", 11f, accent, true, 11)
             val installed = MinecraftLauncher.isInstalled(this)
-            label(body, if (installed) "Minecraft detected" else "Minecraft not detected", 18f, primary, true, 5)
+            label(body, if (installed) "Minecraft is installed" else "Minecraft is not installed", 19f, primary, true, 7)
             label(body, "Argon can open the official game. It cannot change in-game settings yet.", 13f, muted)
-            action(body, "Open installed Minecraft", true, installed) {
+            action(body, if (installed) "Launch Minecraft  ↗" else "Launch unavailable", true, installed) {
                 if (!MinecraftLauncher.open(this)) {
                     Toast.makeText(this, "Could not open Minecraft", Toast.LENGTH_SHORT).show()
                 }
@@ -205,7 +270,7 @@ class MainActivity : Activity() {
         val advice = ArgonFlow.recommend(style, device)
         val saved = store.get(style)
         card(parent) { body ->
-            label(body, "ARGON FLOW  /  PROFILE PREVIEW", 11f, accent, true, 8)
+            label(body, "ARGON FLOW  ·  LOCAL PREVIEW", 11f, accent, true, 11)
             label(body, style.title + " • " + saved.visuals.title, 18f, primary, true, 8)
             label(body, "Control scale " + saved.controlScale + "%  |  HUD opacity " + saved.hudOpacity + "%", 13f, muted, false, 12)
             label(body, "Based on your device:", 14f, primary, true, 7)
@@ -216,7 +281,7 @@ class MainActivity : Activity() {
             }
         }
         card(parent) { body ->
-            label(body, "MODULES / FUTURE CLIENT", 11f, accent, true, 8)
+            label(body, "MODULE WISHLIST", 11f, accent, true, 11)
             val savedCount = ModuleCatalog.all.count { moduleStore.isDesired(it.id) }
             label(body, ModuleCatalog.all.size.toString() + " planned • " + savedCount + " in wishlist", 18f, primary, true, 7)
             label(body, "No modules run in Minecraft yet. Build your wishlist while integration is researched.", 13f, muted)
@@ -234,11 +299,10 @@ class MainActivity : Activity() {
     }
 
     private fun profiles(parent: LinearLayout) {
-        label(parent, "Playstyle profiles", 20f, primary, true, 7)
-        label(parent, "Tune preferences now; game integration comes later.", 13f, muted, false, 15)
+        label(parent, "SELECT A PLAYSTYLE", 11f, accent, true, 14)
         val choices = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
         parent.addView(choices, LinearLayout.LayoutParams(
-            ViewGroup.LayoutParams.MATCH_PARENT, dp(48)
+            ViewGroup.LayoutParams.MATCH_PARENT, dp(52)
         ))
         val selected = store.selected()
         PlayStyle.entries.forEach { style ->
@@ -246,15 +310,16 @@ class MainActivity : Activity() {
             val view = TextView(this).apply {
                 text = style.title
                 textSize = 13f
-                typeface = Typeface.create("sans-serif-medium", Typeface.BOLD)
+                typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
                 setTextColor(if (active) backgroundColor else primary)
                 gravity = Gravity.CENTER
-                background = rounded(if (active) accent else panel, if (active) null else outline, 12)
+                background = touchBackground(if (active) accent else panel, if (active) null else outline, 14)
                 isClickable = true
                 isFocusable = true
+                contentDescription = "${style.title} profile, ${if (active) "selected" else "not selected"}"
                 setOnClickListener { store.select(style); render() }
             }
-            choices.addView(view, LinearLayout.LayoutParams(0, dp(48), 1f).apply {
+            choices.addView(view, LinearLayout.LayoutParams(0, dp(52), 1f).apply {
                 leftMargin = dp(3)
                 rightMargin = dp(3)
             })
@@ -294,8 +359,8 @@ class MainActivity : Activity() {
 
 
     private fun modules(parent: LinearLayout) {
-        label(parent, "Modules", 20f, primary, true, 7)
-        label(parent, "Plan the in-game features you want. All modules are currently unavailable in Minecraft; saving a wishlist does not activate them.", 13f, muted, false, 13)
+        label(parent, "NOT ACTIVE IN MINECRAFT", 11f, accent, true, 8)
+        label(parent, "Save a wishlist of proposed modules. None can change the game yet.", 13f, muted, false, 17)
         card(parent) { body ->
             label(body, "MODULE INTEGRATION", 11f, accent, true, 6)
             label(body, "0 active  •  ${ModuleCatalog.all.size} planned", 17f, primary, true, 6)
@@ -308,12 +373,13 @@ class MainActivity : Activity() {
             textSize = 14f
             setTextColor(primary)
             setHintTextColor(muted)
-            background = rounded(panel, outline, 12)
-            setPadding(dp(13), dp(10), dp(13), dp(10))
+            background = rounded(elevated, outline, 14)
+            setPadding(dp(16), dp(10), dp(16), dp(10))
+            contentDescription = "Search planned modules"
             setText(moduleQuery)
         }
         parent.addView(search, LinearLayout.LayoutParams(
-            ViewGroup.LayoutParams.MATCH_PARENT, dp(48)
+            ViewGroup.LayoutParams.MATCH_PARENT, dp(52)
         ))
         space(parent, 10)
         val categories = HorizontalScrollView(this).apply {
@@ -322,7 +388,7 @@ class MainActivity : Activity() {
         val chips = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
         categories.addView(chips)
         parent.addView(categories, LinearLayout.LayoutParams(
-            ViewGroup.LayoutParams.MATCH_PARENT, dp(44)
+            ViewGroup.LayoutParams.MATCH_PARENT, dp(52)
         ))
         val filters: List<Pair<ModuleCategory?, String>> =
             listOf<Pair<ModuleCategory?, String>>(null to "All") +
@@ -334,14 +400,15 @@ class MainActivity : Activity() {
                 textSize = 13f
                 gravity = Gravity.CENTER
                 setTextColor(if (active) backgroundColor else primary)
-                background = rounded(if (active) accent else panel, if (active) null else outline, 10)
-                setPadding(dp(15), dp(6), dp(15), dp(6))
+                background = touchBackground(if (active) accent else panel, if (active) null else outline, 13)
+                setPadding(dp(16), dp(8), dp(16), dp(8))
                 isClickable = true
                 isFocusable = true
+                contentDescription = "${name} category, ${if (active) "selected" else "not selected"}"
                 setOnClickListener { moduleFilter = category; render() }
             }
             chips.addView(chip, LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.WRAP_CONTENT, dp(39)
+                ViewGroup.LayoutParams.WRAP_CONTENT, dp(48)
             ).apply { rightMargin = dp(8) })
         }
         space(parent, 13)
@@ -396,7 +463,7 @@ class MainActivity : Activity() {
             thumbTintList = android.content.res.ColorStateList.valueOf(accent)
         }
         parent.addView(control, LinearLayout.LayoutParams(
-            ViewGroup.LayoutParams.MATCH_PARENT, dp(38)
+            ViewGroup.LayoutParams.MATCH_PARENT, dp(48)
         ))
         control.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(bar: SeekBar, progress: Int, fromUser: Boolean) {
@@ -408,7 +475,7 @@ class MainActivity : Activity() {
     }
 
     private fun about(parent: LinearLayout) {
-        label(parent, "An Android-first direction", 20f, primary, true, 12)
+        label(parent, "THE ARGON APPROACH", 11f, accent, true, 14)
         card(parent) { body ->
             label(body, "WHY ARGON EXISTS", 11f, accent, true, 8)
             label(body, "Bedrock clients already have plenty of toggles. Argon is being designed around comfortable touch controls, explainable hardware-aware suggestions, and a lightweight offline experience.", 14f, primary)
@@ -426,29 +493,49 @@ class MainActivity : Activity() {
     private fun navigation(): LinearLayout {
         val nav = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
-            setBackgroundColor(panel)
-            setPadding(dp(14), dp(8), dp(14), dp(8))
+            setBackgroundColor(backgroundColor)
+            setPadding(dp(12), dp(7), dp(12), dp(7))
         }
-        val labels = listOf(
+        val tabs = listOf(
             Page.DASHBOARD to "Overview",
             Page.PROFILES to "Profiles",
             Page.MODULES to "Modules",
             Page.ABOUT to "About"
         )
-        labels.forEach { (target, text) ->
+        tabs.forEach { (target, title) ->
             val selected = target == page
-            val tab = TextView(this).apply {
-                this.text = text
-                textSize = 14f
+            val tab = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
                 gravity = Gravity.CENTER
-                typeface = Typeface.create("sans-serif-medium", Typeface.BOLD)
-                setTextColor(if (selected) accent else muted)
-                background = if (selected) rounded(backgroundColor) else null
+                background = touchBackground(if (selected) elevated else backgroundColor, radius = 14)
                 isClickable = true
                 isFocusable = true
-                setOnClickListener { page = target; render() }
+                contentDescription = "$title tab, ${if (selected) "selected" else "not selected"}"
+                setOnClickListener {
+                    if (page != target) {
+                        page = target
+                        render()
+                    }
+                }
             }
-            nav.addView(tab, LinearLayout.LayoutParams(0, dp(50), 1f))
+            val indicator = View(this).apply {
+                background = rounded(if (selected) accent else Color.TRANSPARENT, radius = 2)
+            }
+            tab.addView(indicator, LinearLayout.LayoutParams(dp(24), dp(3)).apply {
+                bottomMargin = dp(8)
+            })
+            val caption = TextView(this).apply {
+                text = title
+                textSize = 12f
+                typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
+                gravity = Gravity.CENTER
+                setTextColor(if (selected) primary else muted)
+            }
+            tab.addView(caption)
+            nav.addView(tab, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 1f).apply {
+                leftMargin = dp(2)
+                rightMargin = dp(2)
+            })
         }
         return nav
     }
