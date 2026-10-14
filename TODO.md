@@ -53,6 +53,7 @@
 - [x] **P0:** Add a native module catalog, categories, search and a saved local wishlist (no in-game behavior).
 - [x] **P0:** Give modules stable IDs, capability requirements and a fail-closed availability guard.
 - [x] **P0:** Show clear `planned/unavailable` labels; never imply wishlist toggles activate modules.
+- [ ] **P0:** Smoke-test FPS resource-pack external link and manual import into Minecraft on a real device; verify that the game-side counter updates and does not require Shizuku.
 - [ ] **P0:** Smoke-test optional cross-app overlay over installed Minecraft on real devices (permission grant/deny/revocation, notification Stop, service teardown, portrait/landscape, battery restrictions).
 - [ ] **P0:** Confirm overlay behavior after leaving Minecraft; user must be able to stop it promptly.
 - [ ] **P0:** Smoke-test in-app module editor on Modules page, drag and persisted Argon FPS/Device Status toggles on a real device.
