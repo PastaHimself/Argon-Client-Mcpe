@@ -760,14 +760,14 @@ class MainActivity : Activity() {
         val availableWidth = resources.displayMetrics.widthPixels - dp(32)
         val panelWidth = min(availableWidth, dp(360))
         val panelHeight = min((resources.displayMetrics.heightPixels * 0.65f).toInt(), dp(590))
-        val panel = LinearLayout(this).apply {
+        val moduleSheet = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             background = rounded(panel, outline, 20)
             elevation = dp(14).toFloat()
             setPadding(dp(18), dp(18), dp(18), dp(16))
             isClickable = true
         }
-        scrim.addView(panel, FrameLayout.LayoutParams(panelWidth, panelHeight,
+        scrim.addView(moduleSheet, FrameLayout.LayoutParams(panelWidth, panelHeight,
             Gravity.END or Gravity.BOTTOM).apply {
             marginEnd = dp(16)
             bottomMargin = dp(89)
@@ -797,13 +797,13 @@ class MainActivity : Activity() {
             setOnClickListener { modulePanelOpen = false; render() }
         }
         header.addView(close, LinearLayout.LayoutParams(dp(48), dp(48)))
-        panel.addView(header)
-        label(panel, "Argon app only · not an overlay in Minecraft", 12f, muted, false, 15)
+        moduleSheet.addView(header)
+        label(moduleSheet, "Argon app only · not an overlay in Minecraft", 12f, muted, false, 15)
         val scroll = ScrollView(this).apply {
             isFillViewport = false
             clipToPadding = false
         }
-        panel.addView(scroll, LinearLayout.LayoutParams(
+        moduleSheet.addView(scroll, LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f
         ))
         val rows = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
@@ -849,7 +849,7 @@ class MainActivity : Activity() {
             label(planned, spec.title + "  ·  Planned", 13f, muted, true, 4)
             label(planned, "No verified Minecraft integration. Cannot enable.", 11f, muted)
         }
-        action(panel, "Browse planned modules") {
+        action(moduleSheet, "Browse planned modules") {
             modulePanelOpen = false
             page = Page.MODULES
             render()
