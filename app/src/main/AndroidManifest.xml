@@ -1,5 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Explicitly granted via Android Settings; never accessed silently. -->
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
     <queries>
         <package android:name="com.mojang.minecraftpe" />
     </queries>
@@ -9,6 +13,14 @@
         android:icon="@drawable/ic_argon"
         android:theme="@style/Theme.Argon"
         android:supportsRtl="true">
+        <service
+            android:name=".overlay.MinecraftOverlayService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="User-started floating game control panel, with an ongoing notification and explicit stop controls." />
+        </service>
         <activity
             android:name=".MainActivity"
             android:exported="true"
