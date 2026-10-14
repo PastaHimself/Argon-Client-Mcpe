@@ -130,6 +130,16 @@ class MainActivity : Activity() {
         if (::store.isInitialized) render()
     }
 
+    @Deprecated("Activity back handling keeps the floating sheet dismissible on API 26+")
+    override fun onBackPressed() {
+        if (modulePanelOpen) {
+            modulePanelOpen = false
+            render()
+        } else {
+            super.onBackPressed()
+        }
+    }
+
     override fun onStop() {
         foreground = false
         fpsMonitor.stop()
@@ -643,7 +653,7 @@ class MainActivity : Activity() {
             }
         }
         if (appModuleStore.isEnabled(AppModuleRegistry.DEVICE_STATUS)) {
-            val saver = if (device.batterySaver) "Saver on" else "Saver off"
+            val saver = if ((getSystemService(POWER_SERVICE) as PowerManager).isPowerSaveMode) "Saver on" else "Saver off"
             floatingPill(layer, "APP MEMORY  ${device.memoryClassMb} MB  ·  $saver",
                 hudOffset + dp(48)).apply {
                 contentDescription = "Android app memory class ${device.memoryClassMb} megabytes, battery saver $saver"
@@ -676,7 +686,7 @@ class MainActivity : Activity() {
             val fy = bubbleYFraction
             if (fx != null && fy != null && bubble.parent === layer) {
                 val travelX = max(1, layer.width - layer.paddingLeft - layer.paddingRight - bubble.width)
-                val travelY = max(1, layer.height - layer.paddingTop - layer.paddingBottom - bubble.height)
+                val travelY = max(1, layer.height - layer.paddingTop - layer.paddingBottom - bubble.height - dp(78))
                 bubble.x = layer.paddingLeft + fx.coerceIn(0f, 1f) * travelX
                 bubble.y = layer.paddingTop + fy.coerceIn(0f, 1f) * travelY
             }
@@ -705,14 +715,14 @@ class MainActivity : Activity() {
                         view.x = (startX + dx).coerceIn(layer.paddingLeft.toFloat(),
                             max(layer.paddingLeft, layer.width - layer.paddingRight - view.width).toFloat())
                         view.y = (startY + dy).coerceIn(layer.paddingTop.toFloat(),
-                            max(layer.paddingTop, layer.height - layer.paddingBottom - view.height).toFloat())
+                            max(layer.paddingTop, layer.height - layer.paddingBottom - view.height - dp(78)).toFloat())
                     }
                     true
                 }
                 MotionEvent.ACTION_UP -> {
                     if (dragging) {
                         val travelX = max(1, layer.width - layer.paddingLeft - layer.paddingRight - view.width)
-                        val travelY = max(1, layer.height - layer.paddingTop - layer.paddingBottom - view.height)
+                        val travelY = max(1, layer.height - layer.paddingTop - layer.paddingBottom - view.height - dp(78))
                         bubbleXFraction = ((view.x - layer.paddingLeft) / travelX).coerceIn(0f, 1f)
                         bubbleYFraction = ((view.y - layer.paddingTop) / travelY).coerceIn(0f, 1f)
                     } else {
