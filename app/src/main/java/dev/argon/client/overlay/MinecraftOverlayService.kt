@@ -73,6 +73,9 @@ class MinecraftOverlayService : Service() {
     private val secondary = Color.rgb(171, 185, 195)
 
     private lateinit var wm: WindowManager
+    private var notificationManager: NotificationManager? = null
+    private var activityManager: ActivityManager? = null
+    private var powerManager: PowerManager? = null
     private lateinit var widgets: OverlayWidgetStore
     private val handler = Handler(Looper.getMainLooper())
     private val locationPrefs by lazy {
@@ -100,6 +103,9 @@ class MinecraftOverlayService : Service() {
     override fun onCreate() {
         super.onCreate()
         wm = getSystemService(WINDOW_SERVICE) as WindowManager
+        notificationManager = getSystemService(NOTIFICATION_SERVICE) as? NotificationManager
+        activityManager = getSystemService(ACTIVITY_SERVICE) as? ActivityManager
+        powerManager = getSystemService(POWER_SERVICE) as? PowerManager
         widgets = OverlayWidgetStore(this)
     }
 
@@ -129,7 +135,7 @@ class MinecraftOverlayService : Service() {
     }
 
     private fun startPersistentNotification() {
-        val nm = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
+        val nm = notificationManager ?: (getSystemService(NOTIFICATION_SERVICE) as NotificationManager)
         nm.createNotificationChannel(
             NotificationChannel(CHANNEL, "Argon floating controls", NotificationManager.IMPORTANCE_LOW)
         )
@@ -448,8 +454,8 @@ class MinecraftOverlayService : Service() {
 
     private fun updateWidgetLabels() {
         clockText?.text = "LOCAL  " + SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date())
-        val memoryClass = (getSystemService(ACTIVITY_SERVICE) as ActivityManager).memoryClass
-        val saver = (getSystemService(POWER_SERVICE) as PowerManager).isPowerSaveMode
+        val memoryClass = activityManager?.memoryClass ?: 0
+        val saver = powerManager?.isPowerSaveMode ?: false
         deviceText?.text = "APP MEMORY ${memoryClass} MB  ·  Saver ${if (saver) "on" else "off"}"
     }
 
