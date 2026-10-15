@@ -47,8 +47,8 @@
 - [x] Device signals detection: app memory class, display refresh rate, low-RAM flag, battery-saver state.
 - [x] System-level floating overlay service (`MinecraftOverlayService`) with ongoing notification and stop controls.
 - [x] Gradle wrapper, automated build script, and GitHub Actions CI.
-- [ ] **P0:** Smoke-test floating overlay permission grant/revoke flow and orientation handling on real physical devices.
-- [ ] **P0:** Ensure zero memory leaks when overlay service restarts or tears down.
+- [x] **P0:** Smoke-test floating overlay permission grant/revoke flow and orientation handling on real physical devices.
+- [x] **P0:** Ensure zero memory leaks when overlay service restarts or tears down.
 
 ---
 

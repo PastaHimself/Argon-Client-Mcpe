@@ -8,7 +8,7 @@ import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
 import android.content.Intent
-import android.net.Uri
+import android.content.pm.ServiceInfo
 import android.content.res.ColorStateList
 import android.content.res.Configuration
 import android.graphics.Color
@@ -17,17 +17,19 @@ import android.graphics.Point
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.graphics.drawable.RippleDrawable
+import android.net.Uri
 import android.os.Build
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
 import android.os.PowerManager
 import android.provider.Settings
-import android.content.pm.ServiceInfo
+import android.util.Log
 import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewConfiguration
+import android.view.ViewGroup
 import android.view.WindowManager
 import android.widget.LinearLayout
 import android.widget.ScrollView
@@ -56,6 +58,7 @@ class MinecraftOverlayService : Service() {
     companion object {
         const val ACTION_START = "dev.argon.client.overlay.START"
         const val ACTION_STOP = "dev.argon.client.overlay.STOP"
+        private const val TAG = "ArgonOverlay"
         private const val CHANNEL = "argon_overlay_v1"
         private const val NOTIFICATION_ID = 4202
 
@@ -91,7 +94,9 @@ class MinecraftOverlayService : Service() {
     private val tick = object : Runnable {
         override fun run() {
             if (!active) return
-            if (!Settings.canDrawOverlays(this@MinecraftOverlayService)) {
+            if (!canDrawOverlaysSafely()) {
+                Log.w(TAG, "Overlay permission revoked during tick. Stopping overlay service.")
+                teardownOverlay()
                 stopSelf()
                 return
             }
@@ -113,10 +118,12 @@ class MinecraftOverlayService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == ACTION_STOP) {
+            teardownOverlay()
             stopSelf()
             return START_NOT_STICKY
         }
-        if (intent?.action != ACTION_START || !Settings.canDrawOverlays(this)) {
+        if (intent?.action != ACTION_START || !canDrawOverlaysSafely()) {
+            teardownOverlay()
             stopSelf()
             return START_NOT_STICKY
         }
@@ -128,10 +135,19 @@ class MinecraftOverlayService : Service() {
             rebuildHud()
             handler.post(tick)
         } catch (error: RuntimeException) {
-            android.util.Log.e("ArgonOverlay", "Could not create permitted overlay", error)
+            Log.e(TAG, "Could not create permitted overlay", error)
+            teardownOverlay()
             stopSelf()
         }
         return START_NOT_STICKY
+    }
+
+    private fun canDrawOverlaysSafely(): Boolean {
+        return try {
+            Settings.canDrawOverlays(this)
+        } catch (_: Exception) {
+            false
+        }
     }
 
     private fun startPersistentNotification() {
@@ -182,8 +198,17 @@ class MinecraftOverlayService : Service() {
             background(Color.WHITE, radius, null)
         )
 
-    @Suppress("DEPRECATION")
-    private fun screenSize(): Point = Point().also { wm.defaultDisplay.getSize(it) }
+    private fun screenSize(): Point {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            val bounds = wm.currentWindowMetrics.bounds
+            Point(bounds.width(), bounds.height())
+        } else {
+            Point().also {
+                @Suppress("DEPRECATION")
+                wm.defaultDisplay.getRealSize(it)
+            }
+        }
+    }
 
     private fun layout(width: Int, height: Int, screenX: Int, screenY: Int): WindowManager.LayoutParams =
         WindowManager.LayoutParams(
@@ -200,10 +225,12 @@ class MinecraftOverlayService : Service() {
     private fun addBubble() {
         val size = screenSize()
         val diameter = dp(56)
-        val x = (locationPrefs.getFloat("x", 0.91f) * max(1, size.x - diameter))
-            .roundToInt().coerceIn(0, max(0, size.x - diameter))
-        val y = (locationPrefs.getFloat("y", 0.45f) * max(1, size.y - diameter))
-            .roundToInt().coerceIn(0, max(0, size.y - diameter))
+        val x = OverlayPositionMath.calculateCoordinate(
+            locationPrefs.getFloat("x", 0.91f), size.x, diameter
+        )
+        val y = OverlayPositionMath.calculateCoordinate(
+            locationPrefs.getFloat("y", 0.45f), size.y, diameter
+        )
         val params = layout(diameter, diameter, x, y)
         val view = TextView(this).apply {
             text = "A"
@@ -240,22 +267,34 @@ class MinecraftOverlayService : Service() {
                     if (abs(dx) > slop || abs(dy) > slop) dragging = true
                     if (dragging) {
                         val currentSize = screenSize()
-                        params.x = (startX + dx.roundToInt()).coerceIn(
-                            0, max(0, currentSize.x - diameter)
+                        params.x = OverlayPositionMath.clampCoordinate(
+                            startX + dx.roundToInt(), currentSize.x, diameter
                         )
-                        params.y = (startY + dy.roundToInt()).coerceIn(
-                            0, max(0, currentSize.y - diameter)
+                        params.y = OverlayPositionMath.clampCoordinate(
+                            startY + dy.roundToInt(), currentSize.y, diameter
                         )
-                        runCatching { wm.updateViewLayout(v, params) }
+                        try {
+                            if (v.isAttachedToWindow) {
+                                wm.updateViewLayout(v, params)
+                            }
+                        } catch (e: Exception) {
+                            Log.w(TAG, "Failed to update bubble layout during drag", e)
+                            if (!canDrawOverlaysSafely()) {
+                                teardownOverlay()
+                                stopSelf()
+                            }
+                        }
                     }
                     true
                 }
                 MotionEvent.ACTION_UP -> {
                     if (dragging) {
                         val currentSize = screenSize()
+                        val fx = OverlayPositionMath.calculateFraction(params.x, currentSize.x, diameter)
+                        val fy = OverlayPositionMath.calculateFraction(params.y, currentSize.y, diameter)
                         locationPrefs.edit()
-                            .putFloat("x", params.x.toFloat() / max(1, currentSize.x - diameter))
-                            .putFloat("y", params.y.toFloat() / max(1, currentSize.y - diameter))
+                            .putFloat("x", fx)
+                            .putFloat("y", fy)
                             .apply()
                         removeSheet()
                     } else {
@@ -274,7 +313,7 @@ class MinecraftOverlayService : Service() {
 
     /** Only the panel area intercepts touch; Minecraft remains touchable outside it. */
     private fun showSheet() {
-        if (sheet != null || !Settings.canDrawOverlays(this)) return
+        if (sheet != null || !canDrawOverlaysSafely()) return
         val size = screenSize()
         val width = min(dp(334), max(dp(220), size.x - dp(24)))
             .coerceAtMost(max(1, size.x))
@@ -316,7 +355,7 @@ class MinecraftOverlayService : Service() {
             }
             rows.addView(line, LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
-            ).apply { bottomMargin = dp(9) })
+            ).apply { bottomMargin = dp(9) })\
             val text = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
             text.addView(label(widget.title, 14f, fg))
             text.addView(label(widget.description, 11f, secondary))
@@ -389,7 +428,10 @@ class MinecraftOverlayService : Service() {
             isClickable = true
             isFocusable = true
             contentDescription = "Stop Argon overlay and notification"
-            setOnClickListener { stopSelf() }
+            setOnClickListener {
+                teardownOverlay()
+                stopSelf()
+            }
         }
         container.addView(stop, LinearLayout.LayoutParams(
             LinearLayout.LayoutParams.MATCH_PARENT, dp(46)
@@ -398,8 +440,12 @@ class MinecraftOverlayService : Service() {
             wm.addView(container, layout(width, height, x, y))
             sheet = container
         } catch (error: RuntimeException) {
-            android.util.Log.w("ArgonOverlay", "Overlay panel rejected by Android", error)
-            stopSelf()
+            Log.w(TAG, "Overlay panel rejected by Android", error)
+            removeSheet()
+            if (!canDrawOverlaysSafely()) {
+                teardownOverlay()
+                stopSelf()
+            }
         }
     }
 
@@ -413,7 +459,7 @@ class MinecraftOverlayService : Service() {
 
     private fun rebuildHud() {
         removeHud()
-        if (!Settings.canDrawOverlays(this)) return
+        if (!canDrawOverlaysSafely()) return
         val showClock = widgets.enabled(OverlayWidgetRegistry.CLOCK)
         val showDevice = widgets.enabled(OverlayWidgetRegistry.DEVICE)
         if (!showClock && !showDevice) return
@@ -432,66 +478,125 @@ class MinecraftOverlayService : Service() {
             stack.addView(deviceText)
         }
         updateWidgetLabels()
-        // A small noninteractive HUD; it never captures the game's touch events.
+
+        val size = screenSize()
+        val hudX = dp(12).coerceIn(0, max(0, size.x - dp(100)))
+        val hudY = dp(76).coerceIn(0, max(0, size.y - dp(50)))
+
         try {
             wm.addView(stack, layout(
                 WindowManager.LayoutParams.WRAP_CONTENT,
                 WindowManager.LayoutParams.WRAP_CONTENT,
-                dp(12), dp(76)
+                hudX, hudY
             ).apply {
                 flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
                     WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or
                     WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL
-                // Android 12+ blocks touch-through on highly obscuring overlays.
                 alpha = 0.7f
             })
             hud = stack
         } catch (error: RuntimeException) {
-            android.util.Log.w("ArgonOverlay", "Overlay widget rejected by Android", error)
-            stopSelf()
+            Log.w(TAG, "Overlay widget rejected by Android", error)
+            removeHud()
+            if (!canDrawOverlaysSafely()) {
+                teardownOverlay()
+                stopSelf()
+            }
         }
     }
 
     private fun updateWidgetLabels() {
+        if (!active) return
         clockText?.text = "LOCAL  " + SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date())
-        val memoryClass = activityManager?.memoryClass ?: 0
-        val saver = powerManager?.isPowerSaveMode ?: false
+        val memoryClass = activityManager?.memoryClass
+            ?: (getSystemService(ACTIVITY_SERVICE) as? ActivityManager)?.memoryClass
+            ?: 0
+        val saver = powerManager?.isPowerSaveMode
+            ?: (getSystemService(POWER_SERVICE) as? PowerManager)?.isPowerSaveMode
+            ?: false
         deviceText?.text = "APP MEMORY ${memoryClass} MB  ·  Saver ${if (saver) "on" else "off"}"
     }
 
+    private fun safeRemoveView(view: View?) {
+        if (view == null) return
+        view.setOnClickListener(null)
+        view.setOnTouchListener(null)
+        if (view is ViewGroup) {
+            view.removeAllViews()
+        }
+        if (view.isAttachedToWindow) {
+            try {
+                wm.removeViewImmediate(view)
+            } catch (_: IllegalArgumentException) {
+                // View was not attached or already removed
+            } catch (_: Exception) {
+                runCatching { wm.removeView(view) }
+            }
+        }
+    }
+
     private fun removeSheet() {
-        sheet?.let { runCatching { wm.removeView(it) } }
+        safeRemoveView(sheet)
         sheet = null
     }
 
     private fun removeHud() {
-        hud?.let { runCatching { wm.removeView(it) } }
+        safeRemoveView(hud)
         hud = null
         clockText = null
         deviceText = null
     }
 
+    private fun teardownOverlay() {
+        active = false
+        handler.removeCallbacksAndMessages(null)
+        removeSheet()
+        removeHud()
+        safeRemoveView(bubble)
+        bubble = null
+        bubbleLayout = null
+        clockText = null
+        deviceText = null
+        notificationManager = null
+        activityManager = null
+        powerManager = null
+        runCatching { stopForeground(STOP_FOREGROUND_REMOVE) }
+    }
+
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
+        if (!canDrawOverlaysSafely()) {
+            teardownOverlay()
+            stopSelf()
+            return
+        }
         removeSheet()
         bubbleLayout?.let { params ->
             val size = screenSize()
-            params.x = (locationPrefs.getFloat("x", 0.91f) * max(1, size.x - dp(56))).roundToInt()
-            params.y = (locationPrefs.getFloat("y", 0.45f) * max(1, size.y - dp(56))).roundToInt()
-            bubble?.let { runCatching { wm.updateViewLayout(it, params) } }
+            val diameter = dp(56)
+            val relX = locationPrefs.getFloat("x", 0.91f)
+            val relY = locationPrefs.getFloat("y", 0.45f)
+            params.x = OverlayPositionMath.calculateCoordinate(relX, size.x, diameter)
+            params.y = OverlayPositionMath.calculateCoordinate(relY, size.y, diameter)
+            bubble?.let { b ->
+                if (b.isAttachedToWindow) {
+                    try {
+                        wm.updateViewLayout(b, params)
+                    } catch (e: Exception) {
+                        Log.w(TAG, "Failed to update bubble layout after orientation change", e)
+                        if (!canDrawOverlaysSafely()) {
+                            teardownOverlay()
+                            stopSelf()
+                        }
+                    }
+                }
+            }
         }
         rebuildHud()
     }
 
     override fun onDestroy() {
-        active = false
-        handler.removeCallbacks(tick)
-        removeSheet()
-        removeHud()
-        bubble?.let { runCatching { wm.removeView(it) } }
-        bubble = null
-        bubbleLayout = null
-        stopForeground(STOP_FOREGROUND_REMOVE)
+        teardownOverlay()
         super.onDestroy()
     }
 }
